@@ -1,0 +1,54 @@
+{
+  "name": "greep-backend-student-delivery",
+  "version": "1.0.0",
+  "description": "Backend API for Student Delivery System",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "seed": "node scripts/seed.js",
+    "init-earnings": "node scripts/initEarningsConfig.js",
+    "init-settings": "node scripts/initSystemSettings.js"
+  },
+  "keywords": [
+    "delivery",
+    "student",
+    "api",
+    "backend"
+  ],
+  "author": "wisdom agunta",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "mongoose": "^8.16.5",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.10.1",
+    "nodemon": "^3.1.10",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-prettier": "^5.2.3",
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.1.4",
+    "nodemon": "^3.1.10",
+    "prettier": "^3.3.3",
+    "supertest": "^7.1.4"
+  }
+}
