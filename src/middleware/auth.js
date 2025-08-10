@@ -50,7 +50,7 @@ const authenticateToken = async (req, res, next) => {
                     userType: 'admin',
                     name: 'Super Admin',
                     role: 'super_admin',
-                    permissions: ['all']
+                    permissions: ['all', 'ai_verification']
                 };
             } else {
                 // Create a mock driver user for driver endpoints

@@ -1,36 +1,69 @@
 const cloudinary = require('cloudinary').v2;
 const { Readable } = require('stream');
+const fs = require('fs');
+const path = require('path');
 
-// Configure Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Cloudinary Service for image upload management
+
+// Configure Cloudinary with your credentials or environment variables
+const cloudinaryConfig = {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dj6olncss',
+    api_key: process.env.CLOUDINARY_API_KEY || '863881295321155',
+    api_secret: process.env.CLOUDINARY_API_SECRET || '0WUG_XIU0z_7PwArpRoNi4eEme4'
+};
+
+cloudinary.config(cloudinaryConfig);
+
+// Verify configuration
+const isCloudinaryReady = () => {
+    return !!(cloudinaryConfig.cloud_name && cloudinaryConfig.api_key && cloudinaryConfig.api_secret);
+};
+
+if (isCloudinaryReady()) {
+    console.log('✅ Cloudinary configured successfully with cloud:', cloudinaryConfig.cloud_name);
+} else {
+    console.warn('⚠️  Cloudinary configuration incomplete');
+}
 
 class CloudinaryService {
     // Upload image with compression and optimization
     static async uploadImage(file, folder = 'driver-profiles') {
         try {
+            // Check if Cloudinary is ready
+            if (!isCloudinaryReady()) {
+                throw new Error('Cloudinary configuration is incomplete');
+            }
+
+            console.log('📸 Uploading image to Cloudinary...');
+
             // Convert buffer to stream
             const stream = Readable.from(file.buffer);
 
-            // Upload with optimization settings
+            // Upload with optimization settings (no preset needed)
             const result = await new Promise((resolve, reject) => {
+                const uploadOptions = {
+                    folder: folder,
+                    resource_type: 'auto', // Let Cloudinary detect the resource type
+                    use_filename: true,
+                    unique_filename: true,
+                    overwrite: false,
+                    // Apply transformations after upload
+                    eager: [
+                        { width: 400, height: 400, crop: 'fill', gravity: 'face', quality: 'auto:good', fetch_format: 'auto' }
+                    ],
+                    eager_async: true // Process transformations asynchronously
+                };
+
                 const uploadStream = cloudinary.uploader.upload_stream(
-                    {
-                        folder: folder,
-                        transformation: [
-                            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
-                            { quality: 'auto:good', fetch_format: 'auto' }
-                        ],
-                        resource_type: 'image',
-                        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-                        format: 'webp'
-                    },
+                    uploadOptions,
                     (error, result) => {
-                        if (error) reject(error);
-                        else resolve(result);
+                        if (error) {
+                            console.error('Cloudinary upload stream error:', error);
+                            reject(error);
+                        } else {
+                            console.log('✅ Upload successful to Cloudinary:', result.public_id);
+                            resolve(result);
+                        }
                     }
                 );
 
@@ -57,7 +90,26 @@ class CloudinaryService {
     // Delete image from Cloudinary
     static async deleteImage(publicId) {
         try {
+            // Skip deletion for demo images
+            if (publicId && publicId.startsWith('demo_')) {
+                console.log('📸 Demo mode: Skipping image deletion for:', publicId);
+                return {
+                    success: true,
+                    result: 'demo_skipped'
+                };
+            }
+
+            // Check if Cloudinary is ready
+            if (!isCloudinaryReady()) {
+                console.warn('⚠️  Cloudinary not configured, skipping image deletion');
+                return {
+                    success: true,
+                    result: 'skipped_no_config'
+                };
+            }
+
             const result = await cloudinary.uploader.destroy(publicId);
+            console.log('✅ Image deleted from Cloudinary:', publicId);
             return {
                 success: true,
                 result: result

@@ -3,6 +3,7 @@ const Joi = require('joi');
 const DriverController = require('../controllers/driverController');
 const DeliveryController = require('../controllers/deliveryController');
 const NotificationController = require('../controllers/notificationController');
+const RemittanceController = require('../controllers/remittanceController');
 const {
     authenticateToken,
     driverOnly,
@@ -25,6 +26,12 @@ router.use(authenticateToken);
 router.use(driverOnly);
 router.use(sanitizeInput);
 
+// Driver dashboard
+router.get('/dashboard',
+    validateQuery(schemas.analyticsQuery),
+    DriverController.getDriverDashboard
+);
+
 // Driver profile and status
 router.get('/profile', (req, res, next) => {
     req.params.driverId = req.user.id;
@@ -33,11 +40,25 @@ router.get('/profile', (req, res, next) => {
 
 router.put('/profile',
     validate(schemas.updateDriverProfile),
-    (req, res, next) => {
-        req.params.id = req.user.id;
-        next();
-    },
-    DriverController.updateDriver
+    DriverController.updateProfile
+);
+
+// Debug endpoint to test validation
+router.post('/profile/debug',
+    (req, res) => {
+        console.log('🐛 Debug profile request received:');
+        console.log('Headers:', req.headers);
+        console.log('Body:', req.body);
+        console.log('User:', req.user);
+
+        res.json({
+            success: true,
+            message: 'Debug endpoint - check server logs',
+            receivedData: req.body,
+            headers: req.headers,
+            user: req.user ? { id: req.user.id, userType: req.user.userType } : null
+        });
+    }
 );
 
 router.post('/toggle-online', (req, res, next) => {
@@ -136,23 +157,46 @@ router.put('/notifications/mark-all-read',
     NotificationController.markAllAsRead
 );
 
+// Driver remittances
+router.get('/remittances',
+    validateQuery(schemas.pagination),
+    RemittanceController.getDriverRemittancesWithSummary
+);
+
 // Leaderboard (drivers can view their ranking)
 router.get('/leaderboard',
     validateQuery(schemas.analyticsQuery),
     DriverController.getLeaderboard
 );
 
-// Profile management
-router.put('/profile/update',
-    validate(Joi.object({
-        name: Joi.string().min(2).max(50).optional(),
-        phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).optional(),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other').optional()
+// Account Status endpoints
+router.get('/status', (req, res, next) => {
+    req.params.driverId = req.user.id;
+    next();
+}, DriverController.getAccountStatus);
+
+// Profile Options endpoint
+router.get('/profile-options', DriverController.getProfileOptions);
+
+router.post('/documents/:documentType/upload',
+    uploadSingleImage,
+    handleUploadError,
+    validateParams(Joi.object({
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense').required()
     })),
-    DriverController.updateProfile
+    DriverController.uploadDocument
 );
 
+// Profile management (duplicate route removed - using the main /profile PUT route above)
+
 router.post('/profile/picture',
+    uploadSingleImage,
+    handleUploadError,
+    DriverController.uploadProfilePicture
+);
+
+// Alternative route for frontend compatibility
+router.post('/profile/image',
     uploadSingleImage,
     handleUploadError,
     DriverController.uploadProfilePicture

@@ -23,7 +23,7 @@ class DriverController {
 
             const drivers = await Driver.find(query)
                 .select('-__v')
-                .populate('addedBy', 'name email')
+                .populate('addedBy', 'fullName email')
                 .sort(sortOptions)
                 .limit(limit * 1)
                 .skip((page - 1) * limit);
@@ -54,7 +54,7 @@ class DriverController {
         try {
             const driver = await Driver.findById(driverId)
                 .select('-__v')
-                .populate('addedBy', 'name email');
+                .populate('addedBy', 'fullName email');
 
             if (!driver) {
                 return res.status(404).json({
@@ -65,7 +65,76 @@ class DriverController {
 
             console.log('Driver profile result:', driver);
 
-            successResponse(res, driver, 'Driver profile retrieved successfully');
+            // Get computed data (fallback to stored data if available)
+            const profileCompletion = driver.storedProfileCompletion && driver.storedProfileCompletion.overall > 0
+                ? driver.storedProfileCompletion
+                : driver.profileCompletion;
+            const verificationData = driver.storedVerification && driver.storedVerification.lastUpdated
+                ? driver.storedVerification
+                : driver.accountStatus?.verification || {};
+
+            // Structure response exactly as frontend expects
+            const responseData = {
+                // Basic driver data
+                id: driver._id,
+                fullName: driver.fullName || driver.name,
+                email: driver.email,
+                phone: driver.phone,
+                studentId: driver.studentId,
+                area: driver.area,
+                transportationType: driver.transportationType,
+                university: driver.university,
+                address: driver.address,
+                profilePicture: driver.profilePicture,
+                isActive: driver.isActive,
+                joinedAt: driver.joinedAt,
+
+                // Frontend expected structure
+                profile: {
+                    personalDetails: {
+                        fullName: driver.fullName || driver.name,
+                        email: driver.email,
+                        phone: driver.phone,
+                        address: driver.address || ""
+                    },
+                    studentInfo: {
+                        studentId: driver.studentId,
+                        university: driver.university
+                    },
+                    transportation: {
+                        method: driver.transportationType,  // Frontend expects 'method'
+                        area: driver.area                   // Frontend expects area here too
+                    }
+                },
+
+                completion: {
+                    overall: profileCompletion?.overall || 0,
+                    sections: profileCompletion?.sections || {},
+                    isComplete: profileCompletion?.isComplete || false,
+                    readyForDeliveries: profileCompletion?.readyForDeliveries || false
+                },
+
+                verification: {
+                    studentVerified: verificationData?.studentVerified || false,
+                    profileComplete: verificationData?.profileComplete || false,
+                    activeDeliveryPartner: verificationData?.activeDeliveryPartner || false
+                },
+
+                // Keep original fields for backward compatibility
+                memberSince: driver.memberSince,
+                verificationStatus: driver.verificationStatus,
+                completionRate: driver.completionRate,
+                averageEarningsPerDelivery: driver.averageEarningsPerDelivery,
+                profileCompletion: driver.profileCompletion,
+                accountStatus: driver.accountStatus,
+                verificationProgress: driver.verificationProgress,
+
+                // Include stored data for debugging
+                storedProfileCompletion: driver.storedProfileCompletion,
+                storedVerification: driver.storedVerification
+            };
+
+            successResponse(res, responseData, 'Driver profile retrieved successfully');
         } catch (error) {
             console.error('Error in getDriver:', error);
             errorResponse(res, error, 500);
@@ -110,14 +179,14 @@ class DriverController {
 
             // Send invitation email
             try {
-                await EmailService.sendDriverInvitation(email, name, user.name);
+                await EmailService.sendDriverInvitation(email, fullName, user.fullName);
             } catch (emailError) {
                 console.error('Failed to send driver invitation:', emailError.message);
             }
 
             const driverData = await Driver.findById(newDriver._id)
                 .select('-__v')
-                .populate('addedBy', 'name email');
+                .populate('addedBy', 'fullName email');
 
             successResponse(res, driverData, 'Driver added successfully', 201);
         } catch (error) {
@@ -385,7 +454,7 @@ class DriverController {
             console.log('Delivery query:', JSON.stringify(query, null, 2));
 
             const deliveries = await Delivery.find(query)
-                .populate('assignedBy', 'name email')
+                .populate('assignedBy', 'fullName email')
                 .select('-__v')
                 .sort({ createdAt: -1 })
                 .limit(limit * 1)
@@ -523,7 +592,7 @@ class DriverController {
                 area,
                 isActive: true
             })
-                .select('name email totalDeliveries totalEarnings isOnline')
+                .select('fullName email totalDeliveries totalEarnings isOnline')
                 .sort({ totalDeliveries: 1 }); // Prioritize drivers with fewer deliveries
 
             successResponse(res, drivers, `Drivers in ${area} retrieved successfully`);
@@ -561,7 +630,7 @@ class DriverController {
                     lastLogin: new Date()
                 },
                 { new: true }
-            ).select('name email isOnline lastLogin area totalDeliveries completedDeliveries totalEarnings rating');
+            ).select('fullName email isOnline lastLogin area totalDeliveries completedDeliveries totalEarnings rating');
 
             console.log('Driver status updated in database:', updatedDriver);
 
@@ -656,11 +725,11 @@ class DriverController {
             await AdminNotificationService.createNotification({
                 type: 'driver_deactivated',
                 title: 'Driver Deactivated',
-                message: `Driver ${driver.name} has deactivated their account`,
+                message: `Driver ${driver.fullName} has deactivated their account`,
                 adminId: null, // Send to all admins
                 data: {
                     driverId: driver._id,
-                    driverName: driver.name,
+                    driverName: driver.fullName,
                     driverEmail: driver.email
                 }
             });
@@ -710,7 +779,7 @@ class DriverController {
             // Send email report
             const emailResult = await EmailService.sendMonthlyReport(
                 driver.email,
-                driver.name,
+                driver.fullName,
                 analytics.stats
             );
 
@@ -781,10 +850,10 @@ class DriverController {
                     const drivers = await Driver.find({
                         _id: { $in: driverIds },
                         isActive: true
-                    }).select('email name');
+                    }).select('email fullName');
 
                     const emailPromises = drivers.map(driver =>
-                        EmailService.sendDriverInvitation(driver.email, driver.name, req.user.name)
+                        EmailService.sendDriverInvitation(driver.email, driver.fullName, req.user.fullName)
                             .catch(error => ({ error: error.message, driver: driver.email }))
                     );
 
@@ -869,7 +938,7 @@ class DriverController {
             const performanceSummary = {
                 driver: {
                     id: driver._id,
-                    name: driver.name,
+                    fullName: driver.fullName,
                     email: driver.email,
                     area: driver.area,
                     joinedAt: driver.joinedAt,
@@ -942,6 +1011,23 @@ class DriverController {
 
             // Update driver profile with new picture URL
             driver.profilePicture = uploadResult.url;
+
+            // Also update the profilePhoto document status to verified
+            if (!driver.documents) {
+                driver.documents = {};
+            }
+            if (!driver.documents.profilePhoto) {
+                driver.documents.profilePhoto = {};
+            }
+
+            driver.documents.profilePhoto = {
+                status: 'verified',
+                uploadDate: new Date(),
+                verificationDate: new Date(),
+                documentUrl: uploadResult.url,
+                rejectionReason: undefined
+            };
+
             await driver.save();
 
             successResponse(res, {
@@ -960,10 +1046,380 @@ class DriverController {
         }
     });
 
-    // Update driver profile
-    static updateProfile = catchAsync(async (req, res) => {
+    // Get comprehensive account status
+    static getAccountStatus = catchAsync(async (req, res) => {
+        const { driverId } = req.params;
         const { user } = req;
-        const { name, phone, area } = req.body;
+
+        console.log('🔍 getAccountStatus called for driver:', driverId);
+
+        // Check if user can access this driver's data
+        if (user.userType === 'driver' && user.id !== driverId) {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied'
+            });
+        }
+
+        try {
+            const driver = await Driver.findById(driverId)
+                .select('-__v')
+                .populate('addedBy', 'fullName email');
+
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Get comprehensive account status using virtual field
+            const accountStatus = driver.accountStatus;
+
+            console.log('📊 Account status generated:', {
+                verificationProgress: driver.verificationProgress,
+                profileCompletion: accountStatus.completion.overall,
+                readyForDeliveries: accountStatus.verification.activeDeliveryPartner
+            });
+
+            successResponse(res, accountStatus, 'Account status retrieved successfully');
+        } catch (error) {
+            console.error('Error in getAccountStatus:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get comprehensive driver dashboard data
+    static getDriverDashboard = catchAsync(async (req, res) => {
+        const driverId = req.user.id;
+        const { period = 'month' } = req.query;
+
+        console.log('📊 getDriverDashboard called for driver:', driverId, 'period:', period);
+
+        try {
+            const driver = await Driver.findById(driverId)
+                .select('-__v')
+                .populate('addedBy', 'fullName email');
+
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Get all dashboard data in parallel
+            const [
+                currentPeriodAnalytics,
+                todayAnalytics,
+                weekAnalytics,
+                recentDeliveries,
+                availableDeliveries,
+                totalStats,
+                todayDeliveries,
+                earnings
+            ] = await Promise.all([
+                // Current period analytics (month by default)
+                AnalyticsService.getDriverAnalytics(driverId, period),
+
+                // Today's analytics
+                AnalyticsService.getDriverAnalytics(driverId, 'today'),
+
+                // This week's analytics
+                AnalyticsService.getDriverAnalytics(driverId, 'week'),
+
+                // Recent deliveries (last 10)
+                Delivery.find({ assignedTo: driverId })
+                    .populate('assignedBy', 'fullName email')
+                    .select('deliveryCode pickupLocation deliveryLocation status fee driverEarning createdAt deliveredAt estimatedTime priority paymentMethod')
+                    .sort({ createdAt: -1 })
+                    .limit(10),
+
+                // Available nearby deliveries
+                Delivery.find({
+                    status: 'pending',
+                    $or: [
+                        { area: driver.area },
+                        { area: { $exists: false } }
+                    ]
+                })
+                    .select('deliveryCode pickupLocation deliveryLocation fee estimatedTime priority createdAt distance')
+                    .sort({ createdAt: -1, priority: 1 })
+                    .limit(5),
+
+                // All-time statistics
+                Delivery.aggregate([
+                    { $match: { assignedTo: driver._id, status: 'delivered' } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalDeliveries: { $sum: 1 },
+                            totalEarnings: { $sum: '$driverEarning' },
+                            avgDeliveryTime: {
+                                $avg: {
+                                    $divide: [
+                                        { $subtract: ['$deliveredAt', '$assignedAt'] },
+                                        1000 * 60 // Convert to minutes
+                                    ]
+                                }
+                            },
+                            avgEarningsPerDelivery: { $avg: '$driverEarning' }
+                        }
+                    }
+                ]),
+
+                // Today's deliveries detail
+                Delivery.find({
+                    assignedTo: driverId,
+                    createdAt: {
+                        $gte: new Date().setHours(0, 0, 0, 0),
+                        $lte: new Date().setHours(23, 59, 59, 999)
+                    }
+                })
+                    .select('deliveryCode status pickupLocation deliveryLocation fee driverEarning priority')
+                    .sort({ createdAt: -1 }),
+
+                // Earnings breakdown
+                AnalyticsService.getDriverEarningsBreakdown(driverId, period)
+            ]);
+
+            // Get account status
+            const accountStatus = driver.accountStatus;
+
+            // Calculate quick stats
+            const quickStats = {
+                today: {
+                    deliveries: todayDeliveries.length,
+                    completed: todayDeliveries.filter(d => d.status === 'delivered').length,
+                    earnings: todayDeliveries
+                        .filter(d => d.status === 'delivered')
+                        .reduce((sum, d) => sum + (d.driverEarning || 0), 0),
+                    pending: todayDeliveries.filter(d => d.status === 'pending').length,
+                    inProgress: todayDeliveries.filter(d => ['assigned', 'picked_up'].includes(d.status)).length
+                },
+                thisWeek: {
+                    deliveries: weekAnalytics.stats.totalDeliveries,
+                    earnings: weekAnalytics.stats.totalEarnings,
+                    averagePerDay: weekAnalytics.stats.averagePerDay,
+                    completionRate: weekAnalytics.stats.completionRate
+                },
+                currentPeriod: {
+                    deliveries: currentPeriodAnalytics.stats.totalDeliveries,
+                    earnings: currentPeriodAnalytics.stats.totalEarnings,
+                    averagePerDay: currentPeriodAnalytics.stats.averagePerDay,
+                    completionRate: currentPeriodAnalytics.stats.completionRate
+                },
+                allTime: totalStats[0] || {
+                    totalDeliveries: 0,
+                    totalEarnings: 0,
+                    avgDeliveryTime: 0,
+                    avgEarningsPerDelivery: 0
+                }
+            };
+
+            // Performance metrics
+            const performance = {
+                rating: driver.rating,
+                completionRate: driver.completionRate,
+                totalDeliveries: driver.totalDeliveries,
+                totalEarnings: driver.totalEarnings,
+                averageEarningsPerDelivery: driver.averageEarningsPerDelivery,
+                memberSince: driver.joinedAt,
+                accountAge: driver.accountAge,
+                isOnline: driver.isOnline,
+                isActive: driver.isActive,
+                lastLogin: driver.lastLogin
+            };
+
+            // Comprehensive dashboard payload
+            const dashboardData = {
+                driver: {
+                    id: driver._id,
+                    fullName: driver.fullName,
+                    email: driver.email,
+                    phone: driver.phone,
+                    area: driver.area,
+                    university: driver.university,
+                    studentId: driver.studentId,
+                    transportationType: driver.transportationType,
+                    profilePicture: driver.profilePicture,
+                    isOnline: driver.isOnline,
+                    isActive: driver.isActive,
+                    lastLogin: driver.lastLogin
+                },
+                accountStatus: {
+                    verification: accountStatus.verification,
+                    completion: accountStatus.completion,
+                    documents: accountStatus.documents
+                },
+                quickStats,
+                performance,
+                analytics: {
+                    period: period,
+                    current: currentPeriodAnalytics,
+                    today: todayAnalytics,
+                    week: weekAnalytics
+                },
+                deliveries: {
+                    recent: recentDeliveries,
+                    available: availableDeliveries,
+                    today: todayDeliveries
+                },
+                earnings: {
+                    breakdown: earnings,
+                    summary: {
+                        currentPeriod: currentPeriodAnalytics.stats.totalEarnings,
+                        today: quickStats.today.earnings,
+                        week: weekAnalytics.stats.totalEarnings,
+                        allTime: quickStats.allTime.totalEarnings,
+                        pending: currentPeriodAnalytics.remissionOwed
+                    }
+                },
+                trends: currentPeriodAnalytics.trends,
+                lastUpdated: new Date().toISOString()
+            };
+
+            console.log('📊 Dashboard data compiled successfully:', {
+                deliveriesCount: recentDeliveries.length,
+                availableCount: availableDeliveries.length,
+                completionPercentage: accountStatus.completion.overall,
+                isActive: driver.isActive
+            });
+
+            successResponse(res, dashboardData, 'Driver dashboard data retrieved successfully');
+        } catch (error) {
+            console.error('Error in getDriverDashboard:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get profile options (universities, transportation methods, areas)
+    static getProfileOptions = catchAsync(async (req, res) => {
+        const options = {
+            universities: [
+                'Eastern Mediterranean University (EMU)',
+                'Near East University (NEU)',
+                'Cyprus International University (CIU)',
+                'Girne American University (GAU)',
+                'University of Kyrenia (UoK)',
+                'European University of Lefke (EUL)',
+                'Middle East Technical University (METU) – Northern Cyprus Campus',
+                'Final International University (FIU)',
+                'Bahçeşehir Cyprus University (BAU)',
+                'University of Mediterranean Karpasia (UMK)',
+                'Cyprus Health and Social Science University',
+                'Arkin University of Creative Arts & Design',
+                'Cyprus West University'
+            ],
+            transportationMethods: [
+                { value: 'bicycle', label: 'Bicycle', requiresLicense: false },
+                { value: 'motorcycle', label: 'Motorcycle', requiresLicense: true },
+                { value: 'scooter', label: 'Scooter', requiresLicense: false },
+                { value: 'car', label: 'Car', requiresLicense: true },
+                { value: 'walking', label: 'Walking', requiresLicense: false },
+                { value: 'other', label: 'Other', requiresLicense: false }
+            ],
+            areas: [
+                'Gonyeli',
+                'Kucuk',
+                'Lefkosa',
+                'Famagusta',
+                'Kyrenia',
+                'Other'
+            ],
+            addresses: [
+                'Gonyeli',
+                'Kucuk',
+                'Lefkosa',
+                'Famagusta',
+                'Kyrenia',
+                'Girne',
+                'Iskele',
+                'Guzelyurt',
+                'Lapta',
+                'Ozankoy',
+                'Bogaz',
+                'Dipkarpaz',
+                'Yeniiskele',
+                'Gazimagusa',
+                'Other'
+            ],
+            documentTypes: [
+                { type: 'studentId', label: 'Student ID', required: true },
+                { type: 'profilePhoto', label: 'Profile Photo', required: true },
+                { type: 'universityEnrollment', label: 'University Enrollment Certificate', required: true },
+                { type: 'identityCard', label: 'Identity Card', required: true },
+                { type: 'transportationLicense', label: 'Transportation License', required: false, conditionallyRequired: ['car', 'motorcycle'] }
+            ]
+        };
+
+        successResponse(res, options, 'Profile options retrieved successfully');
+    });
+
+    // Update document verification status (admin only)
+    static updateDocumentStatus = catchAsync(async (req, res) => {
+        const { driverId, documentType } = req.params;
+        const { status, rejectionReason } = req.body;
+
+        console.log('📄 updateDocumentStatus called:', { driverId, documentType, status });
+
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Validate document type
+            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'];
+            if (!validDocuments.includes(documentType)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid document type'
+                });
+            }
+
+            // Initialize documents object if it doesn't exist
+            if (!driver.documents) {
+                driver.documents = {};
+            }
+            if (!driver.documents[documentType]) {
+                driver.documents[documentType] = {};
+            }
+
+            // Update document status
+            driver.documents[documentType].status = status;
+            if (status === 'rejected' && rejectionReason) {
+                driver.documents[documentType].rejectionReason = rejectionReason;
+            } else {
+                driver.documents[documentType].rejectionReason = undefined;
+            }
+
+            // Mark as modified for nested objects
+            driver.markModified('documents');
+            await driver.save();
+
+            console.log('✅ Document status updated successfully');
+
+            // Return updated account status
+            const updatedStatus = driver.accountStatus;
+            successResponse(res, updatedStatus, 'Document status updated successfully');
+
+        } catch (error) {
+            console.error('Error in updateDocumentStatus:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Upload document (driver only)
+    static uploadDocument = catchAsync(async (req, res) => {
+        const { documentType } = req.params;
+        const { user } = req;
+        const { file } = req;
+
+        console.log('📤 uploadDocument called:', { documentType, userId: user.id });
 
         try {
             const driver = await Driver.findById(user.id);
@@ -974,26 +1430,233 @@ class DriverController {
                 });
             }
 
-            // Update fields
-            if (name) driver.name = name;
-            if (phone) driver.phone = phone;
-            if (area) driver.area = area;
+            // Validate document type
+            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'];
+            if (!validDocuments.includes(documentType)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid document type'
+                });
+            }
+
+            // Check if file was uploaded
+            if (!file) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'No document file provided'
+                });
+            }
+
+            // Upload document to Cloudinary
+            const uploadResult = await CloudinaryService.uploadImage(file, `driver-documents/${documentType}`);
+
+            if (!uploadResult.success) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to upload document: ' + uploadResult.error
+                });
+            }
+
+            // Initialize documents object if it doesn't exist
+            if (!driver.documents) {
+                driver.documents = {};
+            }
+            if (!driver.documents[documentType]) {
+                driver.documents[documentType] = {};
+            }
+
+            // Update document upload info
+            driver.documents[documentType] = {
+                status: 'pending',
+                uploadDate: new Date(),
+                documentUrl: uploadResult.url,
+                rejectionReason: undefined
+            };
+
+            // Mark as modified for nested objects
+            driver.markModified('documents');
+            await driver.save();
+
+            console.log('✅ Document uploaded and recorded:', uploadResult.url);
+
+            // Trigger AI verification (optional - can be done separately)
+            // This would typically be done by an admin or automated system
+            console.log('🤖 AI verification can be triggered for:', uploadResult.url);
+
+            successResponse(res, {
+                documentType,
+                status: 'pending',
+                uploadDate: driver.documents[documentType].uploadDate,
+                documentUrl: uploadResult.url,
+                message: 'Document uploaded successfully and pending verification'
+            }, 'Document uploaded successfully and pending verification');
+
+        } catch (error) {
+            console.error('Error in uploadDocument:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Update driver verification status (admin only)
+    static updateVerificationStatus = catchAsync(async (req, res) => {
+        const { id } = req.params;
+        const { isEmailVerified, isPhoneVerified, isDocumentVerified } = req.body;
+
+        try {
+            const driver = await Driver.findById(id);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Update verification fields
+            if (isEmailVerified !== undefined) driver.isEmailVerified = isEmailVerified;
+            if (isPhoneVerified !== undefined) driver.isPhoneVerified = isPhoneVerified;
+            if (isDocumentVerified !== undefined) driver.isDocumentVerified = isDocumentVerified;
 
             await driver.save();
 
+            // Return updated driver with verification status
+            const enhancedProfile = {
+                ...driver.toObject(),
+                verificationStatus: driver.verificationStatus
+            };
+
+            successResponse(res, enhancedProfile, 'Driver verification status updated successfully');
+
+        } catch (error) {
+            console.error('Verification status update error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Update driver profile
+    static updateProfile = catchAsync(async (req, res) => {
+        const { user } = req;
+        const { fullName, phone, area, transportationType, university, studentId, address } = req.body;
+
+        console.log('📝 updateProfile called with data:', {
+            userId: user.id,
+            updateData: { fullName, phone, area, transportationType, university, studentId, address }
+        });
+
+        try {
+            const driver = await Driver.findById(user.id);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Update fields if provided
+            if (fullName !== undefined) driver.fullName = fullName;
+            if (phone !== undefined) driver.phone = phone;
+            if (area !== undefined) driver.area = area;
+            if (transportationType !== undefined) driver.transportationType = transportationType;
+            if (university !== undefined) driver.university = university;
+            if (studentId !== undefined) driver.studentId = studentId;
+            if (address !== undefined) driver.address = address;
+
+            await driver.save();
+
+            console.log('✅ Profile updated successfully for driver:', user.id);
+
             successResponse(res, {
                 id: driver._id,
-                name: driver.name,
+                fullName: driver.fullName,
                 email: driver.email,
                 phone: driver.phone,
                 area: driver.area,
+                transportationType: driver.transportationType,
+                university: driver.university,
+                studentId: driver.studentId,
+                address: driver.address,
                 profilePicture: driver.profilePicture,
+                memberSince: driver.memberSince,
+                verificationStatus: driver.verificationStatus,
+                isActive: driver.isActive,
                 joinedAt: driver.joinedAt,
-                isActive: driver.isActive
+                profileCompletion: driver.profileCompletion,
+                // Include stored completion data for persistence
+                completion: driver.storedProfileCompletion,
+                verification: driver.storedVerification
             }, 'Profile updated successfully');
 
         } catch (error) {
             console.error('Profile update error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get drivers status overview for admin dashboard
+    static getDriversStatus = catchAsync(async (req, res) => {
+        try {
+            // Get all drivers with their basic info
+            const drivers = await Driver.find({}, {
+                _id: 1,
+                fullName: 1,
+                name: 1,
+                email: 1,
+                phone: 1,
+                area: 1,
+                isActive: 1,
+                lastLogin: 1,
+                isOnline: 1,
+                createdAt: 1,
+                updatedAt: 1
+            }).sort({ fullName: 1, name: 1 });
+
+            // Calculate status counts and format driver data
+            let online = 0;
+            let busy = 0;
+            let offline = 0;
+
+            const now = new Date();
+            const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+
+            const formattedDrivers = drivers.map(driver => {
+                // Determine driver status based on activity and availability
+                let status = 'offline';
+
+                if (driver.isActive && driver.lastLogin && driver.lastLogin > fifteenMinutesAgo) {
+                    // If online and available
+                    if (driver.isOnline !== false) {
+                        status = 'online';
+                        online++;
+                    } else {
+                        // Could be busy (assigned to deliveries)
+                        status = 'busy';
+                        busy++;
+                    }
+                } else {
+                    status = 'offline';
+                    offline++;
+                }
+
+                return {
+                    id: driver._id,
+                    name: driver.fullName || driver.name || 'Unknown Driver',
+                    status: status,
+                    lastActive: driver.lastLogin || driver.updatedAt || driver.createdAt,
+                    currentLocation: driver.area || 'Unknown'
+                };
+            });
+
+            const total = drivers.length;
+
+            successResponse(res, {
+                online: online,
+                busy: busy,
+                offline: offline,
+                total: total,
+                drivers: formattedDrivers
+            }, 'Drivers status retrieved successfully');
+
+        } catch (error) {
+            console.error('Get drivers status error:', error);
             errorResponse(res, error, 500);
         }
     });

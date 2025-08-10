@@ -1,4 +1,5 @@
 const express = require('express');
+const Joi = require('joi');
 const AdminController = require('../controllers/adminController');
 const DriverController = require('../controllers/driverController');
 const DeliveryController = require('../controllers/deliveryController');
@@ -145,6 +146,43 @@ router.post('/drivers/:id/unsuspend',
     requirePermission('manage_drivers'),
     validateParams(paramSchemas.mongoId),
     DriverController.unsuspendDriver
+);
+
+router.put('/drivers/:id/verification',
+    requirePermission('manage_drivers'),
+    validateParams(paramSchemas.mongoId),
+    validate(schemas.updateDriverVerification),
+    DriverController.updateVerificationStatus
+);
+
+// Drivers status overview
+router.get('/drivers/status',
+    requirePermission('manage_drivers'),
+    DriverController.getDriversStatus
+);
+
+// Document verification management
+router.get('/drivers/:driverId/status',
+    requirePermission('manage_drivers'),
+    validateParams(paramSchemas.driverId),
+    DriverController.getAccountStatus
+);
+
+router.put('/drivers/:driverId/documents/:documentType',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense').required()
+    })),
+    validate(Joi.object({
+        status: Joi.string().valid('pending', 'verified', 'rejected').required(),
+        rejectionReason: Joi.string().when('status', {
+            is: 'rejected',
+            then: Joi.required(),
+            otherwise: Joi.optional()
+        })
+    })),
+    DriverController.updateDocumentStatus
 );
 
 router.delete('/drivers/:id',

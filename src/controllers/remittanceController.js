@@ -574,6 +574,102 @@ class RemittanceController {
             errorResponse(res, error, 500);
         }
     });
+
+    // Get driver remittances with earnings summary for authenticated driver
+    static getDriverRemittancesWithSummary = catchAsync(async (req, res) => {
+        const { user } = req;
+        const { page = 1, limit = 20, status } = req.query;
+        const skip = (page - 1) * limit;
+
+        try {
+            // Build filter for current driver
+            const filter = { driverId: user.id };
+            if (status) filter.status = status;
+
+            // Get remittances
+            const remittances = await Remittance.find(filter)
+                .populate('handledBy', 'fullName email')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit));
+
+            const total = await Remittance.countDocuments(filter);
+
+            // Get driver details for earnings calculation
+            const Driver = require('../models/Driver');
+            const driver = await Driver.findById(user.id);
+
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Calculate summary statistics
+            const completedRemittances = await Remittance.find({
+                driverId: user.id,
+                status: 'completed'
+            });
+
+            const pendingRemittances = await Remittance.find({
+                driverId: user.id,
+                status: 'pending'
+            });
+
+            const totalPaidOut = completedRemittances.reduce((sum, r) => sum + r.amount, 0);
+            const pendingAmount = pendingRemittances.reduce((sum, r) => sum + r.amount, 0);
+
+            // Get last payout
+            const lastPayout = completedRemittances.length > 0
+                ? {
+                    amount: completedRemittances[0].amount,
+                    date: completedRemittances[0].updatedAt
+                }
+                : null;
+
+            // Available balance = total earnings - total paid out - pending
+            const availableBalance = Math.max(0, driver.totalEarnings - totalPaidOut - pendingAmount);
+
+            // Format remittances for response
+            const formattedRemittances = remittances.map(remittance => ({
+                id: remittance._id,
+                amount: remittance.amount,
+                status: remittance.status === 'completed' ? 'completed' :
+                    remittance.status === 'pending' ? 'pending' : 'processing',
+                requestDate: remittance.createdAt,
+                completedDate: remittance.status === 'completed' ? remittance.updatedAt : null,
+                method: remittance.paymentMethod === 'bank_transfer' ? 'bank_transfer' :
+                    remittance.paymentMethod === 'mobile_money' ? 'mobile_money' :
+                        remittance.paymentMethod,
+                reference: remittance.referenceNumber,
+                description: remittance.description || 'Remittance payment'
+            }));
+
+            const summary = {
+                totalEarnings: driver.totalEarnings || 0,
+                availableBalance: availableBalance,
+                pendingAmount: pendingAmount,
+                totalPaidOut: totalPaidOut,
+                lastPayout: lastPayout
+            };
+
+            successResponse(res, {
+                remittances: formattedRemittances,
+                summary: summary,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / limit)
+                }
+            }, 'Driver remittances retrieved successfully');
+
+        } catch (error) {
+            console.error('Driver remittances error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
 }
 
 module.exports = RemittanceController; 

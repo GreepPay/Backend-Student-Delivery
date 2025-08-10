@@ -41,7 +41,7 @@ class AuthController {
                 user: {
                     id: result.user._id,
                     email: result.user.email,
-                    name: result.user.name,
+                    fullName: result.user.fullName,
                     userType,
                     ...(userType === 'admin' && {
                         role: result.user.role,
@@ -149,7 +149,69 @@ class AuthController {
                 userData = await Admin.findById(user.id).select('-__v');
             } else if (user.userType === 'driver') {
                 const Driver = require('../models/Driver');
-                userData = await Driver.findById(user.id).select('-__v');
+                const driver = await Driver.findById(user.id).select('-__v');
+                if (driver) {
+                    // Get computed data
+                    const profileCompletion = driver.profileCompletion;
+                    const accountStatus = driver.accountStatus;
+
+                    // Structure response exactly as frontend expects
+                    userData = {
+                        // Basic driver data
+                        id: driver._id,
+                        fullName: driver.fullName || driver.name,
+                        email: driver.email,
+                        phone: driver.phone,
+                        studentId: driver.studentId,
+                        area: driver.area,
+                        transportationType: driver.transportationType,
+                        university: driver.university,
+                        address: driver.address,
+                        profilePicture: driver.profilePicture,
+                        isActive: driver.isActive,
+                        joinedAt: driver.joinedAt,
+
+                        // Frontend expected structure
+                        profile: {
+                            personalDetails: {
+                                fullName: driver.fullName || driver.name,
+                                email: driver.email,
+                                phone: driver.phone,
+                                address: driver.address || ""
+                            },
+                            studentInfo: {
+                                studentId: driver.studentId,
+                                university: driver.university
+                            },
+                            transportation: {
+                                method: driver.transportationType,  // Frontend expects 'method'
+                                area: driver.area                   // Frontend expects area here too
+                            }
+                        },
+
+                        completion: {
+                            overall: profileCompletion?.overall || 0,
+                            sections: profileCompletion?.sections || {},
+                            isComplete: profileCompletion?.isComplete || false,
+                            readyForDeliveries: profileCompletion?.readyForDeliveries || false
+                        },
+
+                        verification: {
+                            studentVerified: accountStatus?.verification?.studentVerified || false,
+                            profileComplete: accountStatus?.verification?.profileComplete || false,
+                            activeDeliveryPartner: accountStatus?.verification?.activeDeliveryPartner || false
+                        },
+
+                        // Keep original fields for backward compatibility
+                        memberSince: driver.memberSince,
+                        verificationStatus: driver.verificationStatus,
+                        completionRate: driver.completionRate,
+                        averageEarningsPerDelivery: driver.averageEarningsPerDelivery,
+                        profileCompletion: driver.profileCompletion,
+                        accountStatus: driver.accountStatus,
+                        verificationProgress: driver.verificationProgress
+                    };
+                }
             }
 
             if (!userData) {
@@ -254,7 +316,7 @@ class AuthController {
                 user: {
                     id: user.id,
                     email: user.email,
-                    name: user.name,
+                    fullName: user.fullName,
                     userType: user.userType
                 }
             }, 'Session is valid');

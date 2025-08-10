@@ -6,6 +6,12 @@ class AnalyticsService {
     // Get driver analytics for specific period
     static async getDriverAnalytics(driverId, period = 'month', month = null, year = null, customStartDate = null, customEndDate = null) {
         try {
+            // Get driver info first to access join date for allTime periods
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                throw new Error('Driver not found');
+            }
+
             let startDate, endDate;
 
             if (period === 'custom' && customStartDate && customEndDate) {
@@ -15,16 +21,10 @@ class AnalyticsService {
                 endDate.setHours(23, 59, 59, 999);
                 console.log('🔍 Custom date range:', { startDate, endDate, customStartDate, customEndDate });
             } else {
-                const dateRange = this.getDateRange(period, month, year);
+                const dateRange = this.getDateRange(period, month, year, driver.joinedAt || driver.createdAt);
                 startDate = dateRange.startDate;
                 endDate = dateRange.endDate;
-                console.log('🔍 Predefined date range:', { startDate, endDate, period });
-            }
-
-            // Get driver info
-            const driver = await Driver.findById(driverId);
-            if (!driver) {
-                throw new Error('Driver not found');
+                console.log('🔍 Predefined date range:', { startDate, endDate, period, driverJoinDate: driver.joinedAt || driver.createdAt });
             }
 
             // Get deliveries in the period
@@ -63,7 +63,7 @@ class AnalyticsService {
                 endDate,
                 driver: {
                     id: driver._id,
-                    name: driver.name,
+                    fullName: driver.fullName,
                     email: driver.email,
                     area: driver.area
                 },
@@ -431,7 +431,7 @@ class AnalyticsService {
             ]);
 
             return driverData.map(item => ({
-                name: item.driver.name,
+                name: item.driver.fullName,
                 deliveries: item.deliveries,
                 rating: 4.8, // Mock for now
                 earnings: item.earnings
@@ -443,7 +443,7 @@ class AnalyticsService {
     }
 
     // Get date range based on period
-    static getDateRange(period, month = null, year = null) {
+    static getDateRange(period, month = null, year = null, driverJoinDate = null) {
         const now = moment();
         let startDate, endDate;
 
@@ -454,10 +454,13 @@ class AnalyticsService {
                 endDate = moment().endOf('day').toDate();
                 break;
             case 'week':
+            case 'thisWeek': // Frontend compatibility
                 startDate = moment().startOf('week').toDate();
                 endDate = moment().endOf('week').toDate();
                 break;
             case 'month':
+            case 'monthly':       // Frontend compatibility
+            case 'currentPeriod': // Frontend compatibility - defaults to current month
                 if (month && year) {
                     startDate = moment().year(year).month(month - 1).startOf('month').toDate();
                     endDate = moment().year(year).month(month - 1).endOf('month').toDate();
@@ -476,9 +479,15 @@ class AnalyticsService {
                 }
                 break;
             case 'all-time':
-                // For all-time, we don't set date limits - will get all data
-                startDate = new Date(0); // Unix epoch start
-                endDate = new Date(); // Current date
+            case 'allTime': // Frontend compatibility
+                // For all-time, start from driver's join date instead of Unix epoch
+                if (driverJoinDate) {
+                    startDate = moment.utc(driverJoinDate).startOf('day').toDate();
+                } else {
+                    // Fallback if no join date provided
+                    startDate = new Date(0); // Unix epoch start
+                }
+                endDate = moment().endOf('day').toDate(); // End of today
                 break;
             default:
                 startDate = moment().startOf('month').toDate();
@@ -623,7 +632,7 @@ class AnalyticsService {
                 {
                     $project: {
                         _id: 1,
-                        name: '$driver.name',
+                        name: '$driver.fullName',
                         email: '$driver.email',
                         area: '$driver.area',
                         totalDeliveries: 1,
@@ -808,7 +817,7 @@ class AnalyticsService {
                 {
                     $project: {
                         _id: 1,
-                        name: '$driver.name',
+                        name: '$driver.fullName',
                         area: '$driver.area',
                         totalDeliveries: 1,
                         totalEarnings: 1,

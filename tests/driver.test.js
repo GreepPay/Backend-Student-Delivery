@@ -38,7 +38,8 @@ describe('Driver Endpoints Tests', () => {
             const updateData = {
                 name: 'Updated Driver Name',
                 phone: '+9876543210',
-                area: 'New Area'
+                area: 'Kyrenia',
+                transportationType: 'bicycle'
             };
 
             const response = await request(app)
@@ -51,6 +52,9 @@ describe('Driver Endpoints Tests', () => {
             expect(response.body.data.name).toBe(updateData.name);
             expect(response.body.data.phone).toBe(updateData.phone);
             expect(response.body.data.area).toBe(updateData.area);
+            expect(response.body.data.transportationType).toBe(updateData.transportationType);
+            expect(response.body.data).toHaveProperty('memberSince');
+            expect(response.body.data).toHaveProperty('verificationStatus');
         });
 
         it('should validate phone number format', async () => {

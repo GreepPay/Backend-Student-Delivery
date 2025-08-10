@@ -15,6 +15,7 @@ const driverRatingRoutes = require('./routes/driverRating');
 const systemSettingsRoutes = require('./routes/systemSettings');
 const remittanceRoutes = require('./routes/remittance');
 const publicRoutes = require('./routes/public');
+const aiVerificationRoutes = require('./routes/aiVerification');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -75,6 +76,7 @@ app.use('/api/driver-rating', driverRatingRoutes);
 app.use('/api/system-settings', systemSettingsRoutes);
 app.use('/api/remittance', remittanceRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/ai', aiVerificationRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

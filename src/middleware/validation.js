@@ -72,26 +72,133 @@ const schemas = {
     // Driver schemas
     createDriver: Joi.object({
         email: Joi.string().email().required(),
-        name: Joi.string().min(2).max(50).required(),
+        fullName: Joi.string().min(2).max(50).required(),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow('').messages({
             'string.pattern.base': 'Please enter a valid phone number'
         }),
-        studentId: Joi.string().max(20).allow(''),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other').default('Other')
+        studentId: Joi.string().min(4).max(20).allow(''),
+        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other').default('Other'),
+        university: Joi.string().valid(
+            'Eastern Mediterranean University (EMU)',
+            'Near East University (NEU)',
+            'Cyprus International University (CIU)',
+            'Girne American University (GAU)',
+            'University of Kyrenia (UoK)',
+            'European University of Lefke (EUL)',
+            'Middle East Technical University (METU) – Northern Cyprus Campus',
+            'Final International University (FIU)',
+            'Bahçeşehir Cyprus University (BAU)',
+            'University of Mediterranean Karpasia (UMK)',
+            'Cyprus Health and Social Science University',
+            'Arkin University of Creative Arts & Design',
+            'Cyprus West University'
+        ).default('Eastern Mediterranean University (EMU)'),
+        transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other').default('other'),
+        address: Joi.string().valid(
+            'Gonyeli',
+            'Kucuk',
+            'Lefkosa',
+            'Famagusta',
+            'Kyrenia',
+            'Girne',
+            'Iskele',
+            'Guzelyurt',
+            'Lapta',
+            'Ozankoy',
+            'Bogaz',
+            'Dipkarpaz',
+            'Yeniiskele',
+            'Gazimagusa',
+            'Other'
+        ).allow('')
     }),
 
     updateDriver: Joi.object({
         email: Joi.string().email(),
-        name: Joi.string().min(2).max(50),
+        fullName: Joi.string().min(2).max(50),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
-        studentId: Joi.string().max(20).allow(''),
+        studentId: Joi.string().min(4).max(20).allow(''),
         area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        university: Joi.string().valid(
+            'Eastern Mediterranean University (EMU)',
+            'Near East University (NEU)',
+            'Cyprus International University (CIU)',
+            'Girne American University (GAU)',
+            'University of Kyrenia (UoK)',
+            'European University of Lefke (EUL)',
+            'Middle East Technical University (METU) – Northern Cyprus Campus',
+            'Final International University (FIU)',
+            'Bahçeşehir Cyprus University (BAU)',
+            'University of Mediterranean Karpasia (UMK)',
+            'Cyprus Health and Social Science University',
+            'Arkin University of Creative Arts & Design',
+            'Cyprus West University'
+        ),
+        transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
+        address: Joi.string().valid(
+            'Gonyeli',
+            'Kucuk',
+            'Lefkosa',
+            'Famagusta',
+            'Kyrenia',
+            'Girne',
+            'Iskele',
+            'Guzelyurt',
+            'Lapta',
+            'Ozankoy',
+            'Bogaz',
+            'Dipkarpaz',
+            'Yeniiskele',
+            'Gazimagusa',
+            'Other'
+        ).allow(''),
         isActive: Joi.boolean()
     }),
 
     updateDriverProfile: Joi.object({
-        name: Joi.string().min(2).max(50),
-        phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow('')
+        fullName: Joi.string().min(2).max(50),
+        phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
+        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
+        university: Joi.string().valid(
+            'Eastern Mediterranean University (EMU)',
+            'Near East University (NEU)',
+            'Cyprus International University (CIU)',
+            'Girne American University (GAU)',
+            'University of Kyrenia (UoK)',
+            'European University of Lefke (EUL)',
+            'Middle East Technical University (METU) – Northern Cyprus Campus',
+            'Final International University (FIU)',
+            'Bahçeşehir Cyprus University (BAU)',
+            'University of Mediterranean Karpasia (UMK)',
+            'Cyprus Health and Social Science University',
+            'Arkin University of Creative Arts & Design',
+            'Cyprus West University'
+        ),
+        studentId: Joi.string().min(4).max(20),
+        address: Joi.string().valid(
+            'Gonyeli',
+            'Kucuk',
+            'Lefkosa',
+            'Famagusta',
+            'Kyrenia',
+            'Girne',
+            'Iskele',
+            'Guzelyurt',
+            'Lapta',
+            'Ozankoy',
+            'Bogaz',
+            'Dipkarpaz',
+            'Yeniiskele',
+            'Gazimagusa',
+            'Other'
+        ).allow('')
+    }),
+
+    updateDriverVerification: Joi.object({
+        isEmailVerified: Joi.boolean(),
+        isPhoneVerified: Joi.boolean(),
+        isDocumentVerified: Joi.boolean()
     }),
 
     updateAdminProfile: Joi.object({
@@ -177,7 +284,18 @@ const schemas = {
     }),
 
     analyticsQuery: Joi.object({
-        period: Joi.string().valid('today', 'week', 'month', 'year', 'all-time', 'custom').default('month'),
+        period: Joi.string().valid(
+            'today',
+            'week',
+            'thisWeek',      // Added for frontend compatibility
+            'month',
+            'monthly',       // Added for frontend compatibility
+            'currentPeriod', // Added for frontend compatibility
+            'year',
+            'all-time',
+            'allTime',       // Added for frontend compatibility  
+            'custom'
+        ).default('month'),
         month: Joi.number().integer().min(1).max(12),
         year: Joi.number().integer().min(2020).max(2030),
         startDate: Joi.date(),

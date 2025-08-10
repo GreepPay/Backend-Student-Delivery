@@ -106,12 +106,12 @@ class SocketService {
                 try {
                     // Fetch driver details for proper identification
                     const Driver = require('../models/Driver');
-                    const driver = await Driver.findById(userInfo?.userId).select('name email phone area');
+                    const driver = await Driver.findById(userInfo?.userId).select('fullName email phone area');
 
                     // Broadcast emergency alert to admin room with complete driver info
                     const emergencyPayload = {
                         driverId: userInfo?.userId,
-                        driverName: driver?.name || 'Unknown Driver',
+                        driverName: driver?.fullName || 'Unknown Driver',
                         driverEmail: driver?.email || 'No email available',
                         driverPhone: driver?.phone || 'No phone available',
                         driverArea: driver?.area || 'Unknown area',
