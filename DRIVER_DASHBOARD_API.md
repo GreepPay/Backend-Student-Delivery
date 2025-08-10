@@ -30,8 +30,8 @@ The Driver Dashboard API provides a comprehensive, single-endpoint solution for 
   "data": {
     "driver": {
       "id": "673b123456789abcdef12345",
-      "name": "wisdom agunta",
-      "email": "aguntawisdom@gmail.com",
+      "name": "Test Driver",
+      "email": "driver@example.com",
       "phone": "+905332154789",
       "area": "Famagusta",
       "university": "Eastern Mediterranean University (EMU)",
@@ -127,8 +127,8 @@ The Driver Dashboard API provides a comprehensive, single-endpoint solution for 
         "endDate": "2025-01-31T23:59:59Z",
         "driver": {
           "id": "673b123456789abcdef12345",
-          "name": "wisdom agunta",
-          "email": "aguntawisdom@gmail.com",
+          "name": "Test Driver",
+          "email": "driver@example.com",
           "area": "Famagusta"
         },
         "stats": {

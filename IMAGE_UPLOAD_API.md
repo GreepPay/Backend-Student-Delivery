@@ -8,7 +8,7 @@ The Image Upload API provides secure, optimized image upload functionality using
 
 Your Cloudinary is now configured and ready with:
 
-- **Cloud Name**: `dj6olncss`
+- **Cloud Name**: `YOUR_CLOUD_NAME`
 - **Storage**: Automatic optimization and WebP conversion
 - **Folders**: Organized by type (driver-profiles, documents)
 - **Transformations**: Auto-resize to 400x400, face detection cropping
@@ -34,8 +34,8 @@ Your Cloudinary is now configured and ready with:
   "success": true,
   "message": "Profile picture uploaded successfully",
   "data": {
-    "profilePicture": "https://res.cloudinary.com/dj6olncss/image/upload/v1642...jpg",
-    "optimizedUrl": "https://res.cloudinary.com/dj6olncss/image/upload/w_400,h_400,c_fill,g_face,q_auto:good,f_webp/v1642...jpg",
+    "profilePicture": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/v1642...jpg",
+"optimizedUrl": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/w_400,h_400,c_fill,g_face,q_auto:good,f_webp/v1642...jpg",
     "uploadInfo": {
       "width": 400,
       "height": 400,
@@ -101,7 +101,7 @@ Your Cloudinary is now configured and ready with:
 ### Storage Organization
 
 ```
-dj6olncss.cloudinary.com/
+YOUR_CLOUD_NAME.cloudinary.com/
 ├── driver-profiles/          # Profile pictures
 │   ├── 673b123_profile.webp
 │   └── 674c456_profile.webp

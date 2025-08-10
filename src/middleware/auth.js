@@ -45,8 +45,8 @@ const authenticateToken = async (req, res, next) => {
             if (isAdminEndpoint) {
                 // Create a mock admin user for admin endpoints
                 mockUser = {
-                    id: '688973b69cd2d8234f26bd39', // Admin ID for wisdom@greep.io
-                    email: 'wisdom@greep.io',
+                    id: 'ADMIN_USER_ID', // Replace with actual admin ID
+                    email: 'admin@example.com',
                     userType: 'admin',
                     name: 'Super Admin',
                     role: 'super_admin',
@@ -55,10 +55,10 @@ const authenticateToken = async (req, res, next) => {
             } else {
                 // Create a mock driver user for driver endpoints
                 mockUser = {
-                    id: '6890dc5a98ce5bc39c4e92b7', // Use the correct driver ID for wisdom agunta
-                    email: 'aguntawisdom@gmail.com',
+                    id: 'DRIVER_USER_ID', // Replace with actual driver ID
+                    email: 'driver@example.com',
                     userType: 'driver',
-                    name: 'wisdom agunta',
+                    name: 'Test Driver',
                     area: 'Famagusta'
                 };
             }

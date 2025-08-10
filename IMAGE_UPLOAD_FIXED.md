@@ -98,8 +98,8 @@ console.log("✅ Upload successful:", result);
   "success": true,
   "message": "Profile picture uploaded successfully",
   "data": {
-    "profilePicture": "https://res.cloudinary.com/dj6olncss/image/upload/...",
-    "optimizedUrl": "https://res.cloudinary.com/dj6olncss/image/upload/w_400,h_400,c_fill/...",
+    "profilePicture": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/...",
+"optimizedUrl": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/w_400,h_400,c_fill/...",
     "uploadInfo": {
       "width": 400,
       "height": 400,

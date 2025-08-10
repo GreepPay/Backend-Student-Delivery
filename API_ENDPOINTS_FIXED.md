@@ -175,8 +175,8 @@ If you still get errors:
   "success": true,
   "message": "Profile picture uploaded successfully",
   "data": {
-    "profilePicture": "https://res.cloudinary.com/dj6olncss/image/upload/v123.../profile.webp",
-    "optimizedUrl": "https://res.cloudinary.com/dj6olncss/image/upload/w_400,h_400,c_fill.../profile.webp",
+    "profilePicture": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/v123.../profile.webp",
+"optimizedUrl": "https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/w_400,h_400,c_fill.../profile.webp",
     "uploadInfo": {
       "width": 400,
       "height": 400,

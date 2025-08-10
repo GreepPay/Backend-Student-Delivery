@@ -40,8 +40,8 @@ Successfully renamed the `name` field to `fullName` throughout the entire backen
 ```javascript
 {
   "data": {
-    "name": "wisdom agunta",     // ❌ Old field
-    "email": "aguntawisdom@gmail.com",
+    "name": "Test Driver",     // ❌ Old field
+    "email": "driver@example.com",
     // ...
   }
 }
@@ -52,8 +52,8 @@ Successfully renamed the `name` field to `fullName` throughout the entire backen
 ```javascript
 {
   "data": {
-    "fullName": "wisdom agunta", // ✅ New field
-    "email": "aguntawisdom@gmail.com",
+    "fullName": "Test Driver", // ✅ New field
+    "email": "driver@example.com",
     // ...
   }
 }

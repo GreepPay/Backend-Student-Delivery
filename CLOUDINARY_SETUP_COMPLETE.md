@@ -138,12 +138,12 @@ Use this HTML to test uploads:
 
 ### 🌐 Your Cloudinary URLs
 
-**Base URL**: `https://res.cloudinary.com/dj6olncss/image/upload/`
+**Base URL**: `https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/`
 
 **Example URLs**:
 
-- Profile: `https://res.cloudinary.com/dj6olncss/image/upload/v1234567890/driver-profiles/profile_abc123.png`
-- Optimized: `https://res.cloudinary.com/dj6olncss/image/upload/w_400,h_400,c_fill,g_face,q_auto:good,f_auto/v1234567890/driver-profiles/profile_abc123.png`
+- Profile: `https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/v1234567890/driver-profiles/profile_abc123.png`
+- Optimized: `https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/w_400,h_400,c_fill,g_face,q_auto:good,f_auto/v1234567890/driver-profiles/profile_abc123.png`
 
 ### 🚀 Ready for Production
 

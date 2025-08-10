@@ -69,14 +69,14 @@ After the fixes, your profile API should return:
     "data": {
         // Basic profile fields
         "name": "wisdom agunta",
-        "email": "aguntawisdom@gmail.com",
+        "email": "driver@example.com",
         "phone": "+905332154789",
         "area": "Famagusta",                    // ✅ Service Area
         "transportationType": "other",          // ✅ Transport Method
         "university": "Eastern Mediterranean University (EMU)",
         "studentId": "20223056",
         "address": "...",
-        "profilePicture": "https://res.cloudinary.com/dj6olncss/...", // ✅ Image URL
+        "profilePicture": "https://res.cloudinary.com/YOUR_CLOUD_NAME/...", // ✅ Image URL
 
         // Virtual fields (now included)
         "profileCompletion": {
@@ -171,7 +171,7 @@ If the image still doesn't show after the backend fix:
 
 ```javascript
 console.log("Profile Image URL:", response.data.profilePicture);
-// Should show: https://res.cloudinary.com/dj6olncss/image/upload/v1754765396/driver-profiles/file_o04uvo.jpg
+// Should show: https://res.cloudinary.com/YOUR_CLOUD_NAME/image/upload/v1754765396/driver-profiles/file_o04uvo.jpg
 ```
 
 ### 2. **Test Direct URL Access:**

@@ -5,11 +5,11 @@ const path = require('path');
 
 // Cloudinary Service for image upload management
 
-// Configure Cloudinary with your credentials or environment variables
+// Configure Cloudinary with environment variables only
 const cloudinaryConfig = {
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dj6olncss',
-    api_key: process.env.CLOUDINARY_API_KEY || '863881295321155',
-    api_secret: process.env.CLOUDINARY_API_SECRET || '0WUG_XIU0z_7PwArpRoNi4eEme4'
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 };
 
 cloudinary.config(cloudinaryConfig);

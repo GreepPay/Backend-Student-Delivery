@@ -26,8 +26,8 @@ Updated the `/api/driver/profile` endpoint to return **exactly** the structure y
 {
   "success": true,
   "data": {
-    "fullName": "wisdom agunta",
-    "email": "aguntawisdom@gmail.com",
+    "fullName": "Test Driver",
+    "email": "driver@example.com",
     "phone": "+905332154789",
     "studentId": "20223056",
     "area": "Famagusta",
@@ -38,8 +38,8 @@ Updated the `/api/driver/profile` endpoint to return **exactly** the structure y
     // ✅ NEW: Frontend expected structure
     "profile": {
       "personalDetails": {
-        "fullName": "wisdom agunta",
-        "email": "aguntawisdom@gmail.com",
+        "fullName": "Test Driver",
+        "email": "driver@example.com",
         "phone": "+905332154789",
         "address": ""
       },
@@ -118,7 +118,7 @@ const isActivePartner = response.data.verification.activeDeliveryPartner; // fal
 const personalDetails = response.data.profile.personalDetails;
 // {
 //   "fullName": "wisdom agunta",
-//   "email": "aguntawisdom@gmail.com",
+//   "email": "driver@example.com",
 //   "phone": "+905332154789",
 //   "address": ""
 // }
