@@ -8,6 +8,7 @@ const AdminNotificationController = require('../controllers/adminNotificationCon
 const {
     authenticateToken,
     adminOnly,
+    adminOrSuperAdmin,
     superAdminOnly,
     requirePermission
 } = require('../middleware/auth');
@@ -25,13 +26,26 @@ const router = express.Router();
 
 // Apply middleware to all admin routes
 router.use(authenticateToken);
-router.use(adminOnly);
+router.use(adminOrSuperAdmin);
 router.use(sanitizeInput);
 
 // Dashboard and overview
 router.get('/dashboard',
     validateQuery(schemas.analyticsQuery),
     AdminController.getDashboard
+);
+
+// Dashboard sub-endpoints for frontend compatibility
+router.get('/dashboard/recent-deliveries',
+    AdminController.getRecentDeliveries
+);
+
+router.get('/dashboard/top-drivers',
+    AdminController.getTopDrivers
+);
+
+router.get('/dashboard/driver-status',
+    AdminController.getDriverStatus
 );
 
 router.get('/stats',
@@ -115,6 +129,38 @@ router.get('/drivers',
     requirePermission('manage_drivers'),
     validateQuery(schemas.pagination.concat(schemas.driverFilters)),
     DriverController.getDrivers
+);
+
+// Driver invitation system
+router.post('/drivers/invite',
+    requirePermission('manage_drivers'),
+    validate(Joi.object({
+        name: Joi.string().required().min(2).max(50),
+        email: Joi.string().email().required()
+    })),
+    AdminController.inviteDriver
+);
+
+router.get('/drivers/invitations',
+    requirePermission('manage_drivers'),
+    validateQuery(schemas.pagination),
+    AdminController.getPendingInvitations
+);
+
+router.post('/drivers/invitations/:invitationId/cancel',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        invitationId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    })),
+    AdminController.cancelInvitation
+);
+
+router.post('/drivers/invitations/:invitationId/resend',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        invitationId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    })),
+    AdminController.resendInvitation
 );
 
 router.get('/drivers/:id',
@@ -387,6 +433,132 @@ router.delete('/admin-notifications/:notificationId',
     AdminNotificationController.deleteNotification
 );
 
+// Document Management Routes
+router.get('/documents',
+    requirePermission('manage_drivers'),
+    validateQuery(Joi.object({
+        status: Joi.string().valid('pending', 'verified', 'rejected', 'ai_processing', 'all').default('pending'),
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'),
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(20)
+    })),
+    AdminController.getPendingDocuments
+);
 
+router.put('/documents/:documentId/status',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        documentId: Joi.string().required()
+    })),
+    validate(Joi.object({
+        status: Joi.string().valid('verified', 'rejected').required(),
+        rejectionReason: Joi.string().when('status', {
+            is: 'rejected',
+            then: Joi.string().min(1).required(),
+            otherwise: Joi.string().optional()
+        }),
+        aiVerificationResult: Joi.object().optional()
+    })),
+    AdminController.updateDocumentStatus
+);
+
+router.post('/documents/:documentId/verify-ai',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        documentId: Joi.string().required()
+    })),
+    AdminController.startAIVerification
+);
+
+router.get('/documents/:documentId/verification-status',
+    requirePermission('manage_drivers'),
+    validateParams(Joi.object({
+        documentId: Joi.string().required()
+    })),
+    AdminController.getDocumentVerificationStatus
+);
+
+router.post('/documents/batch-verify',
+    requirePermission('manage_drivers'),
+    validate(Joi.object({
+        documentIds: Joi.array().items(Joi.string()).min(1).required(),
+        action: Joi.string().valid('approve', 'reject').required(),
+        rejectionReason: Joi.string().when('action', {
+            is: 'reject',
+            then: Joi.string().min(1).required(),
+            otherwise: Joi.string().optional()
+        })
+    })),
+    AdminController.batchVerifyDocuments
+);
+
+// Admin Earnings Management Routes
+router.get('/earnings',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        period: Joi.string().valid('today', 'week', 'month', 'quarter', 'year', 'allTime').default('allTime'),
+        startDate: Joi.date().iso(),
+        endDate: Joi.date().iso()
+    })),
+    AdminController.getEarningsOverview
+);
+
+router.put('/earnings/rules',
+    requirePermission('manage_earnings'),
+    validate(Joi.object({
+        rules: Joi.array().items(Joi.object({
+            minFee: Joi.number().min(0).required(),
+            maxFee: Joi.number().min(0).required(),
+            driverPercentage: Joi.number().min(0).max(100).optional(),
+            driverFixed: Joi.number().min(0).optional(),
+            companyPercentage: Joi.number().min(0).max(100).optional(),
+            companyFixed: Joi.number().min(0).optional(),
+            description: Joi.string().optional()
+        }).custom((value, helpers) => {
+            // Custom validation to ensure either percentage or fixed is set for driver
+            if (value.driverPercentage === undefined && value.driverFixed === undefined) {
+                return helpers.error('any.invalid', { message: 'Either driverPercentage or driverFixed must be specified' });
+            }
+            if (value.driverPercentage !== undefined && value.driverFixed !== undefined) {
+                return helpers.error('any.invalid', { message: 'Cannot specify both driverPercentage and driverFixed' });
+            }
+
+            // Custom validation to ensure either percentage or fixed is set for company
+            if (value.companyPercentage === undefined && value.companyFixed === undefined) {
+                return helpers.error('any.invalid', { message: 'Either companyPercentage or companyFixed must be specified' });
+            }
+            if (value.companyPercentage !== undefined && value.companyFixed !== undefined) {
+                return helpers.error('any.invalid', { message: 'Cannot specify both companyPercentage and companyFixed' });
+            }
+
+            return value;
+        })).min(1).required()
+    })),
+    AdminController.updateEarningsRules
+);
+
+router.get('/earnings/history',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(20)
+    })),
+    AdminController.getEarningsHistory
+);
+
+// Socket Status Route (for debugging)
+router.get('/socket-status',
+    requirePermission('view_analytics'),
+    (req, res) => {
+        const socketService = require('../services/socketService');
+        const status = socketService.getStatus();
+
+        res.json({
+            success: true,
+            data: status,
+            message: 'Socket service status retrieved successfully'
+        });
+    }
+);
 
 module.exports = router;

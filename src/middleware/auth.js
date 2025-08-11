@@ -45,20 +45,20 @@ const authenticateToken = async (req, res, next) => {
             if (isAdminEndpoint) {
                 // Create a mock admin user for admin endpoints
                 mockUser = {
-                    id: 'ADMIN_USER_ID', // Replace with actual admin ID
-                    email: 'admin@example.com',
+                    id: '688973b69cd2d8234f26bd39', // Admin ID for wisdom@greep.io
+                    email: 'wisdom@greep.io',
                     userType: 'admin',
                     name: 'Super Admin',
                     role: 'super_admin',
-                    permissions: ['all', 'ai_verification']
+                    permissions: ['all', 'create_delivery', 'edit_delivery', 'delete_delivery', 'manage_drivers', 'view_analytics', 'ai_verification']
                 };
             } else {
                 // Create a mock driver user for driver endpoints
                 mockUser = {
-                    id: 'DRIVER_USER_ID', // Replace with actual driver ID
-                    email: 'driver@example.com',
+                    id: '6890dc5a98ce5bc39c4e92b7', // Driver ID for wisdom agunta
+                    email: 'aguntawisdom@gmail.com',
                     userType: 'driver',
-                    name: 'Test Driver',
+                    name: 'wisdom agunta',
                     area: 'Famagusta'
                 };
             }
@@ -134,12 +134,17 @@ const authenticateToken = async (req, res, next) => {
     }
 };
 
-// Admin-only middleware
+// Admin-only middleware (allows both admin and super_admin roles)
 const adminOnly = (req, res, next) => {
     if (req.user.userType !== 'admin') {
         return res.status(403).json({
             success: false,
-            error: 'Admin access required'
+            error: 'Admin access required',
+            details: {
+                userType: req.user.userType,
+                role: req.user.role,
+                allowedRoles: ['admin', 'super_admin']
+            }
         });
     }
     next();
@@ -161,7 +166,28 @@ const superAdminOnly = (req, res, next) => {
     if (req.user.userType !== 'admin' || req.user.role !== 'super_admin') {
         return res.status(403).json({
             success: false,
-            error: 'Super admin access required'
+            error: 'Super admin access required',
+            details: {
+                userType: req.user.userType,
+                role: req.user.role,
+                requiredRole: 'super_admin'
+            }
+        });
+    }
+    next();
+};
+
+// Admin or super admin middleware (for general admin access)
+const adminOrSuperAdmin = (req, res, next) => {
+    if (req.user.userType !== 'admin') {
+        return res.status(403).json({
+            success: false,
+            error: 'Admin access required',
+            details: {
+                userType: req.user.userType,
+                role: req.user.role,
+                allowedRoles: ['admin', 'super_admin']
+            }
         });
     }
     next();
@@ -233,6 +259,14 @@ const optionalAuth = async (req, res, next) => {
                 ...decoded,
                 userData: user
             };
+
+            // Log user context for debugging
+            console.log('User context set:', {
+                id: req.user.id,
+                email: req.user.email,
+                userType: req.user.userType,
+                role: req.user.role
+            });
         } else {
             req.user = null;
         }
@@ -279,6 +313,31 @@ const userRateLimit = (maxRequests = 100, windowMs = 60 * 60 * 1000) => {
     };
 };
 
+// User context validation middleware
+const validateUserContext = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({
+            success: false,
+            error: 'User context not found',
+            details: {
+                message: 'User authentication required',
+                path: req.originalUrl
+            }
+        });
+    }
+
+    // Log user context for debugging
+    console.log('User context validated:', {
+        id: req.user.id,
+        email: req.user.email,
+        userType: req.user.userType,
+        role: req.user.role,
+        path: req.originalUrl
+    });
+
+    next();
+};
+
 // Refresh token
 const refreshToken = (req, res) => {
     try {
@@ -303,11 +362,13 @@ module.exports = {
     generateToken,
     authenticateToken,
     adminOnly,
+    adminOrSuperAdmin,
     driverOnly,
     superAdminOnly,
     requirePermission,
     canAccessDriverData,
     optionalAuth,
+    validateUserContext,
     userRateLimit,
     refreshToken
 };

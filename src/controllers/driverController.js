@@ -7,6 +7,8 @@ const AdminNotificationService = require('../services/adminNotificationService')
 const CloudinaryService = require('../services/cloudinaryService');
 const socketService = require('../services/socketService');
 const { catchAsync, successResponse, errorResponse, paginatedResponse } = require('../middleware/errorHandler');
+const DriverInvitationService = require('../services/driverInvitationService');
+const bcrypt = require('bcryptjs');
 
 class DriverController {
     // Get all drivers (admin only)
@@ -1149,21 +1151,27 @@ class DriverController {
 
                 // All-time statistics
                 Delivery.aggregate([
-                    { $match: { assignedTo: driver._id, status: 'delivered' } },
+                    { $match: { assignedTo: driver._id } },
                     {
                         $group: {
                             _id: null,
                             totalDeliveries: { $sum: 1 },
-                            totalEarnings: { $sum: '$driverEarning' },
+                            completedDeliveries: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+                            totalEarnings: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, '$driverEarning', 0] } },
                             avgDeliveryTime: {
                                 $avg: {
-                                    $divide: [
-                                        { $subtract: ['$deliveredAt', '$assignedAt'] },
-                                        1000 * 60 // Convert to minutes
+                                    $cond: [
+                                        { $eq: ['$status', 'delivered'] },
+                                        {
+                                            $divide: [
+                                                { $subtract: ['$deliveredAt', '$assignedAt'] },
+                                                1000 * 60 // Convert to minutes
+                                            ]
+                                        },
+                                        null
                                     ]
                                 }
-                            },
-                            avgEarningsPerDelivery: { $avg: '$driverEarning' }
+                            }
                         }
                     }
                 ]),
@@ -1209,12 +1217,21 @@ class DriverController {
                     averagePerDay: currentPeriodAnalytics.stats.averagePerDay,
                     completionRate: currentPeriodAnalytics.stats.completionRate
                 },
-                allTime: totalStats[0] || {
-                    totalDeliveries: 0,
-                    totalEarnings: 0,
-                    avgDeliveryTime: 0,
-                    avgEarningsPerDelivery: 0
-                }
+                allTime: (() => {
+                    const stats = totalStats[0] || {
+                        totalDeliveries: 0,
+                        completedDeliveries: 0,
+                        totalEarnings: 0,
+                        avgDeliveryTime: 0
+                    };
+                    return {
+                        ...stats,
+                        completionRate: stats.totalDeliveries > 0 ?
+                            Math.round((stats.completedDeliveries / stats.totalDeliveries) * 100) : 0,
+                        avgEarningsPerDelivery: stats.completedDeliveries > 0 ?
+                            Math.round(stats.totalEarnings / stats.completedDeliveries) : 0
+                    };
+                })()
             };
 
             // Performance metrics
@@ -1230,6 +1247,10 @@ class DriverController {
                 isActive: driver.isActive,
                 lastLogin: driver.lastLogin
             };
+
+            // Calculate delivery completion rate
+            const deliveryCompletionRate = quickStats.allTime.totalDeliveries > 0 ?
+                Math.round((quickStats.allTime.completedDeliveries / quickStats.allTime.totalDeliveries) * 100) : 0;
 
             // Comprehensive dashboard payload
             const dashboardData = {
@@ -1247,6 +1268,7 @@ class DriverController {
                     isActive: driver.isActive,
                     lastLogin: driver.lastLogin
                 },
+                deliveryCompletionRate: deliveryCompletionRate,
                 accountStatus: {
                     verification: accountStatus.verification,
                     completion: accountStatus.completion,
@@ -1282,7 +1304,8 @@ class DriverController {
             console.log('📊 Dashboard data compiled successfully:', {
                 deliveriesCount: recentDeliveries.length,
                 availableCount: availableDeliveries.length,
-                completionPercentage: accountStatus.completion.overall,
+                deliveryCompletionRate: deliveryCompletionRate,
+                profileCompletionPercentage: accountStatus.completion.overall,
                 isActive: driver.isActive
             });
 
@@ -1658,6 +1681,67 @@ class DriverController {
         } catch (error) {
             console.error('Get drivers status error:', error);
             errorResponse(res, error, 500);
+        }
+    });
+
+    // Activate driver account from invitation (OTP-only, no password)
+    static activateDriverAccount = catchAsync(async (req, res) => {
+        const { token } = req.params;
+        const { phone, studentId, university, address } = req.body; // Removed area field
+
+        try {
+            // Validate required fields (no password required)
+            if (!phone || !studentId || !university || !address) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'All fields are required for account activation (except password - OTP-only system)',
+                    details: {
+                        note: 'Service area must be one of: Gonyeli, Kucuk, Lefkosa, Famagusta, Kyrenia, Other'
+                    }
+                });
+            }
+
+            // Activate driver account (no password)
+            // Map address field to both area and address for database consistency
+            const driver = await DriverInvitationService.activateDriverAccount(token, {
+                phone,
+                studentId,
+                university,
+                area: address, // Use address as area
+                address: address // Use address as address
+                // No password field - OTP-only authentication
+            });
+
+            successResponse(res, {
+                driver: {
+                    id: driver._id,
+                    name: driver.name,
+                    email: driver.email,
+                    area: driver.area
+                },
+                message: 'Account activated successfully. Use OTP to login - no password required.'
+            }, 'Driver account activated successfully');
+        } catch (error) {
+            errorResponse(res, error, 400);
+        }
+    });
+
+    // Validate invitation token (for frontend validation)
+    static validateInvitation = catchAsync(async (req, res) => {
+        const { token } = req.params;
+
+        try {
+            const invitation = await DriverInvitationService.validateInvitationToken(token);
+
+            successResponse(res, {
+                invitation: {
+                    email: invitation.email,
+                    name: invitation.name,
+                    expiresAt: invitation.expiresAt
+                }
+            }, 'Invitation is valid');
+        } catch (error) {
+            errorResponse(res, error, 400);
         }
     });
 }

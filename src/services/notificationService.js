@@ -305,6 +305,65 @@ class NotificationService {
             throw error;
         }
     }
+
+    // Send document status notification to driver
+    static async sendDocumentStatusNotification(driverId, documentType, status, rejectionReason = null) {
+        try {
+            const documentTypeLabels = {
+                studentId: 'Student ID',
+                profilePhoto: 'Profile Photo',
+                universityEnrollment: 'University Enrollment',
+                identityCard: 'Identity Card',
+                transportationLicense: 'Transportation License'
+            };
+
+            const documentLabel = documentTypeLabels[documentType] || documentType;
+
+            let title, message;
+
+            if (status === 'verified') {
+                title = 'Document Verified Successfully';
+                message = `Your ${documentLabel} has been verified and approved. You can now continue with your delivery activities.`;
+            } else if (status === 'rejected') {
+                title = 'Document Verification Failed';
+                message = `Your ${documentLabel} was not approved. Reason: ${rejectionReason || 'Document does not meet requirements'}. Please upload a new document.`;
+            } else if (status === 'ai_processing') {
+                title = 'Document Under AI Review';
+                message = `Your ${documentLabel} is currently being reviewed by our AI verification system. This process usually takes a few minutes.`;
+            } else {
+                title = 'Document Status Updated';
+                message = `Your ${documentLabel} status has been updated to: ${status}`;
+            }
+
+            const notification = await this.createNotification({
+                recipient: driverId,
+                recipientModel: 'Driver',
+                type: 'document_status',
+                title: title,
+                message: message,
+                priority: status === 'rejected' ? 'high' : 'medium',
+                createdBy: null,
+                createdByModel: 'System',
+                metadata: {
+                    documentType,
+                    status,
+                    rejectionReason
+                }
+            });
+
+            // Emit socket event for real-time notification
+            const socketService = require('./socketService');
+            socketService.emitNotificationUpdate(notification);
+
+            console.log(`📧 Document status notification sent to driver ${driverId}: ${status}`);
+
+            return notification;
+        } catch (error) {
+            console.error('Error sending document status notification:', error);
+            // Don't throw error to avoid breaking the main flow
+            return null;
+        }
+    }
 }
 
 module.exports = NotificationService; 

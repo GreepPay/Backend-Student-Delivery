@@ -36,6 +36,8 @@ const handleJWTExpiredError = () =>
 
 // Send error in development
 const sendErrorDev = (err, res) => {
+    // Ensure we always send JSON response
+    res.setHeader('Content-Type', 'application/json');
     res.status(err.statusCode).json({
         success: false,
         error: err.message,
@@ -46,6 +48,9 @@ const sendErrorDev = (err, res) => {
 
 // Send error in production
 const sendErrorProd = (err, res) => {
+    // Ensure we always send JSON response
+    res.setHeader('Content-Type', 'application/json');
+
     // Operational, trusted error: send message to client
     if (err.isOperational) {
         res.status(err.statusCode).json({

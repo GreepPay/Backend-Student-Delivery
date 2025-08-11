@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const EarningsConfig = require('../models/EarningsConfig');
 require('dotenv').config();
 
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+});
+
 const defaultEarningsRules = [
     {
         minFee: 0,
@@ -10,7 +16,7 @@ const defaultEarningsRules = [
         driverFixed: null,
         companyPercentage: 40,
         companyFixed: null,
-        description: 'Deliveries up to ₺100: 60% to driver, 40% to company'
+        description: 'Under 100: 60% driver, 40% company'
     },
     {
         minFee: 101,
@@ -19,7 +25,7 @@ const defaultEarningsRules = [
         driverFixed: 100,
         companyPercentage: null,
         companyFixed: 50,
-        description: 'Deliveries ₺101-₺150: ₺100 to driver, ₺50 to company'
+        description: '100-150: 100 flat fee for driver, 50 for company'
     },
     {
         minFee: 151,
@@ -28,71 +34,47 @@ const defaultEarningsRules = [
         driverFixed: null,
         companyPercentage: 40,
         companyFixed: null,
-        description: 'Deliveries over ₺150: 60% to driver, 40% to company'
+        description: 'Above 150: 60% driver, 40% company'
     }
 ];
 
 async function initializeEarningsConfig() {
     try {
-        // Connect to MongoDB
-        await mongoose.connect(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
-
-        console.log('Connected to MongoDB');
+        console.log('🔄 Initializing earnings configuration...');
 
         // Check if there's already an active configuration
         const existingConfig = await EarningsConfig.findOne({ isActive: true });
 
         if (existingConfig) {
-            console.log('Active earnings configuration already exists. Skipping initialization.');
-            console.log('Current active config:', existingConfig.name);
+            console.log('⚠️ Active earnings configuration already exists. Skipping initialization.');
+            console.log('Current config:', existingConfig.name);
             return;
         }
 
-        // Create default configuration
-        const defaultConfig = new EarningsConfig({
-            name: 'Default Earnings Rules',
+        // Create new earnings configuration
+        const newConfig = new EarningsConfig({
+            name: 'Default Earnings Rules - Greep SDS',
             rules: defaultEarningsRules,
             isActive: true,
-            createdBy: null, // Will be set by admin when they first access
-            notes: 'Default earnings configuration created during system initialization',
-            effectiveDate: new Date()
+            effectiveDate: new Date(),
+            version: 1,
+            notes: 'Initial earnings configuration with Greep SDS fee structure'
         });
 
-        // Validate the configuration
-        defaultConfig.validateRules();
+        await newConfig.save();
 
-        // Save the configuration
-        await defaultConfig.save();
-
-        console.log('✅ Default earnings configuration created successfully!');
-        console.log('📋 Rules:');
+        console.log('✅ Earnings configuration initialized successfully!');
+        console.log('📋 Rules applied:');
         defaultEarningsRules.forEach((rule, index) => {
-            console.log(`   ${index + 1}. ₺${rule.minFee}-₺${rule.maxFee}: ${rule.driverPercentage ? `${rule.driverPercentage}%` : `₺${rule.driverFixed}`} to driver`);
+            console.log(`  ${index + 1}. ${rule.description}`);
         });
 
     } catch (error) {
-        console.error('❌ Error initializing earnings configuration:', error.message);
-        throw error;
+        console.error('❌ Error initializing earnings configuration:', error);
     } finally {
-        await mongoose.disconnect();
-        console.log('Disconnected from MongoDB');
+        mongoose.connection.close();
     }
 }
 
-// Run the initialization if this script is executed directly
-if (require.main === module) {
-    initializeEarningsConfig()
-        .then(() => {
-            console.log('🎉 Earnings configuration initialization completed!');
-            process.exit(0);
-        })
-        .catch((error) => {
-            console.error('💥 Initialization failed:', error);
-            process.exit(1);
-        });
-}
-
-module.exports = { initializeEarningsConfig }; 
+// Run the initialization
+initializeEarningsConfig(); 

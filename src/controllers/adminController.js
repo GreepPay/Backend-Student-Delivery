@@ -3,6 +3,7 @@ const Driver = require('../models/Driver');
 const Delivery = require('../models/Delivery');
 const AnalyticsService = require('../services/analyticsService');
 const EmailService = require('../services/emailService');
+const DriverInvitationService = require('../services/driverInvitationService');
 const { catchAsync, successResponse, errorResponse, paginatedResponse } = require('../middleware/errorHandler');
 
 class AdminController {
@@ -40,6 +41,146 @@ class AdminController {
             }, 'Dashboard data retrieved successfully');
         } catch (error) {
             errorResponse(res, error, 500);
+        }
+    });
+
+    // Get recent deliveries for dashboard
+    static getRecentDeliveries = catchAsync(async (req, res) => {
+        try {
+            const recentDeliveries = await Delivery.find()
+                .populate('assignedTo', 'name email area')
+                .populate('assignedBy', 'name email')
+                .sort({ createdAt: -1 })
+                .limit(10);
+
+            successResponse(res, {
+                recentDeliveries,
+                lastUpdated: new Date().toISOString()
+            }, 'Recent deliveries retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get top drivers for dashboard
+    static getTopDrivers = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = AnalyticsService.getDateRange(period);
+            const topDrivers = await AnalyticsService.getTopDrivers(startDate, endDate, 5);
+
+            successResponse(res, {
+                topDrivers,
+                period,
+                lastUpdated: new Date().toISOString()
+            }, 'Top drivers retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get real-time driver status
+    static getDriverStatus = catchAsync(async (req, res) => {
+        try {
+            const drivers = await Driver.find({ isActive: true })
+                .select('_id name email area isOnline lastLogin totalDeliveries totalEarnings rating')
+                .sort({ lastLogin: -1 });
+
+            const driverStatus = drivers.map(driver => ({
+                id: driver._id,
+                name: driver.name,
+                email: driver.email,
+                area: driver.area,
+                isOnline: driver.isOnline || false,
+                lastLogin: driver.lastLogin,
+                totalDeliveries: driver.totalDeliveries || 0,
+                totalEarnings: driver.totalEarnings || 0,
+                rating: driver.rating || 0
+            }));
+
+            successResponse(res, {
+                drivers: driverStatus,
+                totalDrivers: driverStatus.length,
+                onlineDrivers: driverStatus.filter(d => d.isOnline).length,
+                lastUpdated: new Date().toISOString()
+            }, 'Driver status retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Invite new driver
+    static inviteDriver = catchAsync(async (req, res) => {
+        const { name, email } = req.body;
+        const { user } = req;
+
+        try {
+            const invitation = await DriverInvitationService.createInvitation({
+                name,
+                email,
+                invitedBy: user.id
+            });
+
+            successResponse(res, {
+                invitationId: invitation._id,
+                email: invitation.email,
+                status: invitation.status,
+                expiresAt: invitation.expiresAt
+            }, 'Driver invitation sent successfully');
+        } catch (error) {
+            errorResponse(res, error, 400);
+        }
+    });
+
+    // Get pending invitations
+    static getPendingInvitations = catchAsync(async (req, res) => {
+        const { page = 1, limit = 20 } = req.query;
+
+        try {
+            const result = await DriverInvitationService.getPendingInvitations(parseInt(page), parseInt(limit));
+
+            successResponse(res, {
+                invitations: result.invitations,
+                pagination: result.pagination
+            }, 'Pending invitations retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Cancel invitation
+    static cancelInvitation = catchAsync(async (req, res) => {
+        const { invitationId } = req.params;
+        const { user } = req;
+
+        try {
+            const invitation = await DriverInvitationService.cancelInvitation(invitationId, user.id);
+
+            successResponse(res, {
+                invitationId: invitation._id,
+                status: invitation.status
+            }, 'Invitation cancelled successfully');
+        } catch (error) {
+            errorResponse(res, error, 400);
+        }
+    });
+
+    // Resend invitation
+    static resendInvitation = catchAsync(async (req, res) => {
+        const { invitationId } = req.params;
+        const { user } = req;
+
+        try {
+            const invitation = await DriverInvitationService.resendInvitation(invitationId, user.id);
+
+            successResponse(res, {
+                invitationId: invitation._id,
+                status: invitation.status,
+                expiresAt: invitation.expiresAt
+            }, 'Invitation resent successfully');
+        } catch (error) {
+            errorResponse(res, error, 400);
         }
     });
 
@@ -494,6 +635,656 @@ class AdminController {
                 message: `Recalculated stats for ${updatedCount} drivers`
             }, 'Driver stats recalculated successfully');
         } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Document Management Methods
+    static getPendingDocuments = catchAsync(async (req, res) => {
+        const { status = 'pending', documentType, page = 1, limit = 20 } = req.query;
+        const skip = (page - 1) * limit;
+
+        try {
+            // Build query based on filters
+            let query = {};
+
+            // Filter by document status
+            if (status !== 'all') {
+                query[`documents.${documentType || 'studentId'}.status`] = status;
+            }
+
+            // Filter by specific document type if provided
+            if (documentType) {
+                query[`documents.${documentType}`] = { $exists: true };
+            }
+
+            // Get drivers with documents
+            const drivers = await Driver.find(query)
+                .select('fullName email phone studentId documents profilePicture joinedAt')
+                .skip(skip)
+                .limit(parseInt(limit))
+                .sort({ 'joinedAt': -1 });
+
+            // Transform data for frontend
+            const documents = [];
+            drivers.forEach(driver => {
+                if (driver.documents) {
+                    Object.keys(driver.documents).forEach(docType => {
+                        const doc = driver.documents[docType];
+                        if (doc && doc.documentUrl) {
+                            documents.push({
+                                id: `${driver._id}_${docType}`,
+                                driverId: driver._id,
+                                driverName: driver.fullName || driver.name,
+                                driverEmail: driver.email,
+                                driverPhone: driver.phone,
+                                studentId: driver.studentId,
+                                documentType: docType,
+                                status: doc.status || 'pending',
+                                documentUrl: doc.documentUrl,
+                                uploadDate: doc.uploadDate,
+                                verifiedAt: doc.verifiedAt,
+                                verifiedBy: doc.verifiedBy,
+                                rejectionReason: doc.rejectionReason,
+                                aiVerificationResult: doc.aiVerificationResult,
+                                profilePicture: driver.profilePicture,
+                                joinedAt: driver.joinedAt
+                            });
+                        }
+                    });
+                }
+            });
+
+            // Filter by status if specified
+            const filteredDocuments = status === 'all' ?
+                documents :
+                documents.filter(doc => doc.status === status);
+
+            // Get total count for pagination
+            const totalDrivers = await Driver.countDocuments(query);
+            const totalDocuments = filteredDocuments.length;
+
+            successResponse(res, {
+                documents: filteredDocuments,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total: totalDocuments,
+                    pages: Math.ceil(totalDocuments / limit)
+                },
+                filters: {
+                    status,
+                    documentType,
+                    totalDrivers
+                }
+            }, 'Documents retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getPendingDocuments:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static updateDocumentStatus = catchAsync(async (req, res) => {
+        const { documentId } = req.params;
+        const { status, rejectionReason, aiVerificationResult } = req.body;
+        const { user } = req;
+
+        try {
+            // Parse documentId (format: driverId_documentType)
+            const [driverId, documentType] = documentId.split('_');
+
+            if (!driverId || !documentType) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid document ID format'
+                });
+            }
+
+            // Find the driver
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Check if document exists
+            if (!driver.documents || !driver.documents[documentType]) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Document not found'
+                });
+            }
+
+            // Update document status
+            const updateData = {
+                status,
+                verifiedAt: status === 'verified' ? new Date() : undefined,
+                verifiedBy: status === 'verified' ? user.id : undefined,
+                rejectionReason: status === 'rejected' ? rejectionReason : undefined
+            };
+
+            // Add AI verification result if provided
+            if (aiVerificationResult) {
+                updateData.aiVerificationResult = aiVerificationResult;
+            }
+
+            // Update the document
+            driver.documents[documentType] = {
+                ...driver.documents[documentType],
+                ...updateData
+            };
+
+            // Mark as modified for nested objects
+            driver.markModified('documents');
+            await driver.save();
+
+            // Send notification to driver (if notification system exists)
+            try {
+                const notificationService = require('../services/notificationService');
+                await notificationService.sendDocumentStatusNotification(driver._id, documentType, status, rejectionReason);
+            } catch (notifError) {
+                console.log('Notification service not available:', notifError.message);
+            }
+
+            successResponse(res, {
+                documentId,
+                status,
+                updatedAt: new Date(),
+                verifiedBy: user.id
+            }, `Document ${status} successfully`);
+
+        } catch (error) {
+            console.error('Error in updateDocumentStatus:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static startAIVerification = catchAsync(async (req, res) => {
+        const { documentId } = req.params;
+        const { user } = req;
+
+        try {
+            // Parse documentId
+            const [driverId, documentType] = documentId.split('_');
+
+            if (!driverId || !documentType) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid document ID format'
+                });
+            }
+
+            // Find the driver and document
+            const driver = await Driver.findById(driverId);
+            if (!driver || !driver.documents || !driver.documents[documentType]) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Document not found'
+                });
+            }
+
+            const document = driver.documents[documentType];
+
+            // Update status to processing
+            driver.documents[documentType].status = 'ai_processing';
+            driver.documents[documentType].aiProcessingStartedAt = new Date();
+            driver.markModified('documents');
+            await driver.save();
+
+            // Start AI verification in background
+            const aiVerificationService = require('../services/aiVerificationService');
+
+            // Process AI verification asynchronously
+            aiVerificationService.verifyDocument(document.documentUrl, documentType)
+                .then(async (result) => {
+                    try {
+                        // Update document with AI result
+                        const updatedDriver = await Driver.findById(driverId);
+                        if (updatedDriver && updatedDriver.documents && updatedDriver.documents[documentType]) {
+                            updatedDriver.documents[documentType].aiVerificationResult = result;
+                            updatedDriver.documents[documentType].status = result.isValid ? 'verified' : 'rejected';
+                            updatedDriver.documents[documentType].verifiedAt = new Date();
+                            updatedDriver.documents[documentType].verifiedBy = user.id;
+                            updatedDriver.documents[documentType].rejectionReason = result.isValid ? undefined : result.reason;
+
+                            updatedDriver.markModified('documents');
+                            await updatedDriver.save();
+
+                            console.log(`✅ AI verification completed for ${documentId}:`, result);
+                        }
+                    } catch (updateError) {
+                        console.error('Error updating document after AI verification:', updateError);
+                    }
+                })
+                .catch(async (error) => {
+                    try {
+                        // Update status to failed
+                        const updatedDriver = await Driver.findById(driverId);
+                        if (updatedDriver && updatedDriver.documents && updatedDriver.documents[documentType]) {
+                            updatedDriver.documents[documentType].status = 'pending';
+                            updatedDriver.documents[documentType].aiVerificationResult = {
+                                error: error.message,
+                                isValid: false
+                            };
+
+                            updatedDriver.markModified('documents');
+                            await updatedDriver.save();
+
+                            console.error(`❌ AI verification failed for ${documentId}:`, error);
+                        }
+                    } catch (updateError) {
+                        console.error('Error updating document after AI verification failure:', updateError);
+                    }
+                });
+
+            successResponse(res, {
+                documentId,
+                status: 'ai_processing',
+                message: 'AI verification started successfully'
+            }, 'AI verification started successfully');
+
+        } catch (error) {
+            console.error('Error in startAIVerification:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getDocumentVerificationStatus = catchAsync(async (req, res) => {
+        const { documentId } = req.params;
+
+        try {
+            const [driverId, documentType] = documentId.split('_');
+
+            if (!driverId || !documentType) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid document ID format'
+                });
+            }
+
+            const driver = await Driver.findById(driverId)
+                .select(`documents.${documentType} fullName email`);
+
+            if (!driver || !driver.documents || !driver.documents[documentType]) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Document not found'
+                });
+            }
+
+            const document = driver.documents[documentType];
+
+            successResponse(res, {
+                documentId,
+                status: document.status,
+                aiVerificationResult: document.aiVerificationResult,
+                uploadDate: document.uploadDate,
+                verifiedAt: document.verifiedAt,
+                verifiedBy: document.verifiedBy,
+                rejectionReason: document.rejectionReason,
+                driverName: driver.fullName || driver.name,
+                driverEmail: driver.email
+            }, 'Document verification status retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getDocumentVerificationStatus:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static batchVerifyDocuments = catchAsync(async (req, res) => {
+        const { documentIds, action, rejectionReason } = req.body;
+        const { user } = req;
+
+        if (!Array.isArray(documentIds) || documentIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Document IDs array is required'
+            });
+        }
+
+        if (!['approve', 'reject'].includes(action)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Action must be either "approve" or "reject"'
+            });
+        }
+
+        try {
+            const results = [];
+            const errors = [];
+
+            for (const documentId of documentIds) {
+                try {
+                    const [driverId, documentType] = documentId.split('_');
+
+                    if (!driverId || !documentType) {
+                        errors.push({ documentId, error: 'Invalid document ID format' });
+                        continue;
+                    }
+
+                    const driver = await Driver.findById(driverId);
+                    if (!driver || !driver.documents || !driver.documents[documentType]) {
+                        errors.push({ documentId, error: 'Document not found' });
+                        continue;
+                    }
+
+                    // Update document status
+                    const updateData = {
+                        status: action === 'approve' ? 'verified' : 'rejected',
+                        verifiedAt: new Date(),
+                        verifiedBy: user.id,
+                        rejectionReason: action === 'reject' ? rejectionReason : undefined
+                    };
+
+                    driver.documents[documentType] = {
+                        ...driver.documents[documentType],
+                        ...updateData
+                    };
+
+                    driver.markModified('documents');
+                    await driver.save();
+
+                    results.push({
+                        documentId,
+                        status: updateData.status,
+                        success: true
+                    });
+
+                } catch (error) {
+                    errors.push({ documentId, error: error.message });
+                }
+            }
+
+            successResponse(res, {
+                action,
+                totalProcessed: documentIds.length,
+                successful: results.length,
+                failed: errors.length,
+                results,
+                errors
+            }, `Batch ${action} completed successfully`);
+
+        } catch (error) {
+            console.error('Error in batchVerifyDocuments:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Admin Earnings Management
+    static getEarningsOverview = catchAsync(async (req, res) => {
+        const { period = 'allTime', startDate, endDate } = req.query;
+
+        try {
+            // Get date range
+            let dateFilter = {};
+            if (period !== 'allTime') {
+                const { startDate: periodStart, endDate: periodEnd } = AnalyticsService.getDateRange(period);
+                dateFilter = {
+                    createdAt: {
+                        $gte: startDate ? new Date(startDate) : periodStart,
+                        $lte: endDate ? new Date(endDate) : periodEnd
+                    }
+                };
+            }
+
+            // Get earnings statistics
+            const earningsStats = await Delivery.aggregate([
+                { $match: dateFilter },
+                {
+                    $group: {
+                        _id: null,
+                        totalDeliveries: { $sum: 1 },
+                        totalRevenue: { $sum: '$deliveryFee' },
+                        totalDriverEarnings: { $sum: '$driverEarning' },
+                        totalCompanyEarnings: { $sum: { $subtract: ['$deliveryFee', '$driverEarning'] } },
+                        avgDeliveryFee: { $avg: '$deliveryFee' },
+                        avgDriverEarning: { $avg: '$driverEarning' },
+                        avgCompanyEarning: { $avg: { $subtract: ['$deliveryFee', '$driverEarning'] } }
+                    }
+                }
+            ]);
+
+            // Get earnings by driver
+            const driverEarnings = await Delivery.aggregate([
+                { $match: dateFilter },
+                {
+                    $group: {
+                        _id: '$assignedTo',
+                        driverName: { $first: '$driverName' },
+                        totalDeliveries: { $sum: 1 },
+                        totalEarnings: { $sum: '$driverEarning' },
+                        avgEarning: { $avg: '$driverEarning' },
+                        completedDeliveries: {
+                            $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] }
+                        }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'drivers',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'driver'
+                    }
+                },
+                {
+                    $addFields: {
+                        driverName: {
+                            $ifNull: [
+                                { $arrayElemAt: ['$driver.fullName', 0] },
+                                { $arrayElemAt: ['$driver.name', 0] },
+                                'Unknown Driver'
+                            ]
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        driver: 0
+                    }
+                },
+                { $sort: { totalEarnings: -1 } },
+                { $limit: 10 }
+            ]);
+
+            // Get earnings breakdown by fee structure
+            const feeBreakdown = await Delivery.aggregate([
+                { $match: dateFilter },
+                {
+                    $addFields: {
+                        feeCategory: {
+                            $cond: [
+                                { $lte: ['$deliveryFee', 100] },
+                                'Under 100',
+                                {
+                                    $cond: [
+                                        { $lte: ['$deliveryFee', 150] },
+                                        '100-150',
+                                        'Above 150'
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$feeCategory',
+                        count: { $sum: 1 },
+                        totalRevenue: { $sum: '$deliveryFee' },
+                        totalDriverEarnings: { $sum: '$driverEarning' },
+                        totalCompanyEarnings: { $sum: { $subtract: ['$deliveryFee', '$driverEarning'] } },
+                        avgDeliveryFee: { $avg: '$deliveryFee' },
+                        avgDriverEarning: { $avg: '$driverEarning' },
+                        avgCompanyEarning: { $avg: { $subtract: ['$deliveryFee', '$driverEarning'] } }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ]);
+
+            // Get monthly earnings trend
+            const monthlyTrend = await Delivery.aggregate([
+                { $match: dateFilter },
+                {
+                    $group: {
+                        _id: {
+                            year: { $year: '$createdAt' },
+                            month: { $month: '$createdAt' }
+                        },
+                        totalRevenue: { $sum: '$deliveryFee' },
+                        totalDriverEarnings: { $sum: '$driverEarning' },
+                        totalCompanyEarnings: { $sum: { $subtract: ['$deliveryFee', '$driverEarning'] } },
+                        deliveryCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $addFields: {
+                        month: {
+                            $concat: [
+                                { $toString: '$_id.year' },
+                                '-',
+                                { $toString: { $padLeft: [{ $toString: '$_id.month' }, 2, '0'] } }
+                            ]
+                        }
+                    }
+                },
+                { $sort: { '_id.year': 1, '_id.month': 1 } },
+                { $limit: 12 }
+            ]);
+
+            // Get current earnings configuration
+            const EarningsConfig = require('../models/EarningsConfig');
+            const currentConfig = await EarningsConfig.getActiveConfig();
+
+            const stats = earningsStats[0] || {
+                totalDeliveries: 0,
+                totalRevenue: 0,
+                totalDriverEarnings: 0,
+                totalCompanyEarnings: 0,
+                avgDeliveryFee: 0,
+                avgDriverEarning: 0,
+                avgCompanyEarning: 0
+            };
+
+            successResponse(res, {
+                period,
+                dateRange: {
+                    startDate: dateFilter.createdAt?.$gte || null,
+                    endDate: dateFilter.createdAt?.$lte || null
+                },
+                summary: {
+                    totalDeliveries: stats.totalDeliveries,
+                    totalRevenue: stats.totalRevenue,
+                    totalDriverEarnings: stats.totalDriverEarnings,
+                    totalCompanyEarnings: stats.totalCompanyEarnings,
+                    avgDeliveryFee: Math.round(stats.avgDeliveryFee * 100) / 100,
+                    avgDriverEarning: Math.round(stats.avgDriverEarning * 100) / 100,
+                    avgCompanyEarning: Math.round(stats.avgCompanyEarning * 100) / 100,
+                    driverPercentage: stats.totalRevenue > 0 ? Math.round((stats.totalDriverEarnings / stats.totalRevenue) * 100) : 0,
+                    companyPercentage: stats.totalRevenue > 0 ? Math.round((stats.totalCompanyEarnings / stats.totalRevenue) * 100) : 0
+                },
+                topDrivers: driverEarnings,
+                feeBreakdown,
+                monthlyTrend,
+                currentConfig: currentConfig ? {
+                    id: currentConfig._id,
+                    name: currentConfig.name,
+                    rules: currentConfig.rules,
+                    effectiveDate: currentConfig.effectiveDate,
+                    version: currentConfig.version
+                } : null
+            }, 'Earnings overview retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getEarningsOverview:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Update earnings configuration with new rules
+    static updateEarningsRules = catchAsync(async (req, res) => {
+        const { rules } = req.body;
+        const { user } = req;
+
+        try {
+            // Validate the new rules structure
+            if (!Array.isArray(rules) || rules.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'At least one earnings rule is required'
+                });
+            }
+
+            // Create new earnings configuration
+            const EarningsConfig = require('../models/EarningsConfig');
+
+            // Deactivate current active config
+            await EarningsConfig.updateMany(
+                { isActive: true },
+                { isActive: false }
+            );
+
+            // Create new configuration
+            const newConfig = new EarningsConfig({
+                name: `Earnings Rules - ${new Date().toLocaleDateString()}`,
+                rules: rules,
+                createdBy: user.id,
+                effectiveDate: new Date(),
+                isActive: true,
+                version: 1,
+                notes: 'Updated earnings rules'
+            });
+
+            await newConfig.save();
+
+            // Update existing deliveries with new earnings calculation
+            const EarningsService = require('../services/earningsService');
+            const updatedCount = await EarningsService.recalculateAllDeliveries(newConfig);
+
+            successResponse(res, {
+                config: newConfig,
+                updatedDeliveries: updatedCount,
+                message: 'Earnings rules updated successfully'
+            }, 'Earnings rules updated successfully');
+
+        } catch (error) {
+            console.error('Error in updateEarningsRules:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get earnings configuration history
+    static getEarningsHistory = catchAsync(async (req, res) => {
+        const { page = 1, limit = 20 } = req.query;
+
+        try {
+            const EarningsConfig = require('../models/EarningsConfig');
+
+            const configs = await EarningsConfig.find()
+                .populate('createdBy', 'name email')
+                .populate('updatedBy', 'name email')
+                .sort({ effectiveDate: -1 })
+                .limit(parseInt(limit))
+                .skip((parseInt(page) - 1) * parseInt(limit));
+
+            const total = await EarningsConfig.countDocuments();
+
+            successResponse(res, {
+                configs,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    total,
+                    pages: Math.ceil(total / parseInt(limit))
+                }
+            }, 'Earnings configuration history retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getEarningsHistory:', error);
             errorResponse(res, error, 500);
         }
     });

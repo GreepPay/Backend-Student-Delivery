@@ -4,246 +4,196 @@ class SocketService {
     constructor() {
         this.io = null;
         this.connectedUsers = new Map(); // Map to store user connections
+        this.isInitialized = false;
     }
 
     initialize(server) {
-        this.io = socketIO(server, {
-            cors: {
-                origin: process.env.FRONTEND_URL || "http://localhost:3000",
-                methods: ["GET", "POST"],
-                credentials: true
-            }
-        });
-
-        this.io.on('connection', (socket) => {
-            console.log('User connected:', socket.id);
-
-            // Handle user authentication and room joining
-            socket.on('authenticate', (data) => {
-                const { userId, userType } = data;
-                console.log('Socket authentication received:', { userId, userType, socketId: socket.id });
-
-                // Store user connection
-                this.connectedUsers.set(socket.id, { userId, userType });
-
-                // Join appropriate rooms
-                if (userType === 'admin') {
-                    socket.join('admin-room');
-                    console.log(`Admin ${userId} joined admin room`);
-                    console.log('🔍 Admin room members:', this.io.sockets.adapter.rooms.get('admin-room')?.size || 0);
-                } else if (userType === 'driver') {
-                    socket.join(`driver-${userId}`);
-                    socket.join('drivers-room');
-                    console.log(`Driver ${userId} joined driver rooms`);
-                    console.log(`🔍 Driver room: driver-${userId}`);
-                    console.log(`🔍 Drivers room members: ${this.io.sockets.adapter.rooms.get('drivers-room')?.size || 0}`);
+        try {
+            this.io = socketIO(server, {
+                cors: {
+                    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+                    methods: ["GET", "POST"],
+                    credentials: true
                 }
             });
 
-            // Handle driver status updates
-            socket.on('driver-status-update', (data) => {
-                const { driverId, isOnline, lastLogin } = data;
+            this.io.on('connection', (socket) => {
+                console.log('User connected:', socket.id);
 
-                // Broadcast to admin room
-                this.io.to('admin-room').emit('driver-status-changed', {
-                    driverId,
-                    isOnline,
-                    lastLogin,
-                    timestamp: new Date().toISOString()
-                });
+                // Handle user authentication and room joining
+                socket.on('authenticate', (data) => {
+                    const { userId, userType } = data;
+                    console.log('Socket authentication received:', { userId, userType, socketId: socket.id });
 
-                console.log(`Driver ${driverId} status updated: ${isOnline ? 'online' : 'offline'}`);
-            });
+                    // Store user connection
+                    this.connectedUsers.set(socket.id, { userId, userType });
 
-            // Handle driver location updates (for future use)
-            socket.on('driver-location-update', (data) => {
-                const { driverId, location } = data;
-
-                // Broadcast to admin room
-                this.io.to('admin-room').emit('driver-location-changed', {
-                    driverId,
-                    location,
-                    timestamp: new Date().toISOString()
-                });
-            });
-
-            // Handle delivery status updates
-            socket.on('delivery-status-update', (data) => {
-                const { deliveryId, status, driverId } = data;
-
-                // Broadcast to admin room
-                this.io.to('admin-room').emit('delivery-status-changed', {
-                    deliveryId,
-                    status,
-                    driverId,
-                    timestamp: new Date().toISOString()
-                });
-            });
-
-            // Handle general notifications
-            socket.on('notification', (data) => {
-                const userInfo = this.connectedUsers.get(socket.id);
-
-                // Broadcast notification to appropriate rooms
-                if (data.target === 'drivers') {
-                    this.io.to('drivers-room').emit('notification', data);
-                } else if (data.target === 'admins') {
-                    this.io.to('admin-room').emit('notification', data);
-                } else {
-                    // Broadcast to all
-                    this.io.emit('notification', data);
-                }
-            });
-
-            // Handle emergency alerts
-            socket.on('emergency-alert', async (data) => {
-                console.log('🚨 Emergency alert received:', data);
-                const userInfo = this.connectedUsers.get(socket.id);
-                console.log('🔍 User info for emergency alert:', userInfo);
-                console.log('🔍 Socket ID:', socket.id);
-                console.log('🔍 Connected users:', this.connectedUsers.size);
-
-                try {
-                    // Fetch driver details for proper identification
-                    const Driver = require('../models/Driver');
-                    const driver = await Driver.findById(userInfo?.userId).select('fullName email phone area');
-
-                    // Broadcast emergency alert to admin room with complete driver info
-                    const emergencyPayload = {
-                        driverId: userInfo?.userId,
-                        driverName: driver?.fullName || 'Unknown Driver',
-                        driverEmail: driver?.email || 'No email available',
-                        driverPhone: driver?.phone || 'No phone available',
-                        driverArea: driver?.area || 'Unknown area',
-                        message: data.message,
-                        timestamp: data.timestamp || new Date().toISOString(),
-                        socketId: socket.id,
-                        // Communication details
-                        contactInfo: {
-                            phone: driver?.phone,
-                            email: driver?.email,
-                            area: driver?.area
-                        },
-                        // Response instructions
-                        responseInstructions: {
-                            callDriver: `Call driver at ${driver?.phone || 'No phone available'}`,
-                            emailDriver: `Email driver at ${driver?.email || 'No email available'}`,
-                            replyViaSocket: `Reply via socket ID: ${socket.id}`,
-                            driverLocation: `Driver is in ${driver?.area || 'Unknown area'}`
-                        }
-                    };
-
-                    console.log('🚨 Broadcasting emergency alert to admin room:', emergencyPayload);
-                    console.log('🔍 Admin room members:', this.io.sockets.adapter.rooms.get('admin-room')?.size || 0);
-
-                    // Check if admin room exists
-                    const adminRoom = this.io.sockets.adapter.rooms.get('admin-room');
-                    if (adminRoom) {
-                        console.log('🔍 Admin room sockets:', Array.from(adminRoom));
-                    } else {
-                        console.log('❌ Admin room does not exist');
+                    // Join appropriate rooms
+                    if (userType === 'admin') {
+                        socket.join('admin-room');
+                        console.log(`Admin ${userId} joined admin room`);
+                        console.log('🔍 Admin room members:', this.io.sockets.adapter.rooms.get('admin-room')?.size || 0);
+                    } else if (userType === 'driver') {
+                        socket.join(`driver-${userId}`);
+                        socket.join('drivers-room');
+                        console.log(`Driver ${userId} joined driver rooms`);
+                        console.log(`🔍 Driver room: driver-${userId}`);
+                        console.log(`🔍 Drivers room members: ${this.io.sockets.adapter.rooms.get('drivers-room')?.size || 0}`);
                     }
+                });
 
-                    this.io.to('admin-room').emit('emergency-alert', emergencyPayload);
+                // Handle driver status updates
+                socket.on('driver-status-update', (data) => {
+                    const { driverId, isOnline, lastLogin } = data;
 
-                    console.log('🚨 Emergency alert broadcasted to admin room');
-
-                    // Also emit to the specific driver for immediate feedback
-                    this.io.to(`driver-${userInfo?.userId}`).emit('emergency-sent', {
-                        message: 'Emergency alert sent to admin',
+                    // Broadcast to admin room
+                    this.io.to('admin-room').emit('driver-status-changed', {
+                        driverId,
+                        isOnline,
+                        lastLogin,
                         timestamp: new Date().toISOString()
                     });
-                } catch (error) {
-                    console.error('❌ Error processing emergency alert:', error);
 
-                    // Fallback emergency payload
-                    const fallbackPayload = {
-                        driverId: userInfo?.userId,
-                        driverName: 'Unknown Driver',
-                        driverEmail: 'No email available',
-                        driverPhone: 'No phone available',
-                        driverArea: 'Unknown area',
-                        message: data.message,
-                        timestamp: data.timestamp || new Date().toISOString(),
-                        socketId: socket.id,
-                        error: 'Failed to fetch driver details',
-                        contactInfo: {
-                            phone: 'No phone available',
-                            email: 'No email available',
-                            area: 'Unknown area'
-                        },
-                        responseInstructions: {
-                            callDriver: 'Driver phone not available',
-                            emailDriver: 'Driver email not available',
-                            replyViaSocket: `Reply via socket ID: ${socket.id}`,
-                            driverLocation: 'Driver location unknown'
-                        }
-                    };
-
-                    this.io.to('admin-room').emit('emergency-alert', fallbackPayload);
-                }
-            });
-
-            // Handle admin replies to emergency alerts
-            socket.on('admin-emergency-reply', (data) => {
-                console.log('📞 Admin emergency reply received:', data);
-                const { driverId, message, adminName } = data;
-
-                console.log(`🔍 Sending to driver room: driver-${driverId}`);
-                console.log(`🔍 Driver room members: ${this.io.sockets.adapter.rooms.get(`driver-${driverId}`)?.size || 0}`);
-                console.log(`🔍 All rooms:`, Array.from(this.io.sockets.adapter.rooms.keys()));
-
-                // Send reply to specific driver
-                this.io.to(`driver-${driverId}`).emit('emergency-reply', {
-                    message: message,
-                    adminName: adminName || 'Admin',
-                    timestamp: new Date().toISOString()
+                    console.log(`Driver ${driverId} status updated: ${isOnline ? 'online' : 'offline'}`);
                 });
 
-                console.log(`📞 Emergency reply sent to driver ${driverId}`);
+                // Handle driver location updates (for future use)
+                socket.on('driver-location-update', (data) => {
+                    const { driverId, location } = data;
+
+                    // Broadcast to admin room
+                    this.io.to('admin-room').emit('driver-location-changed', {
+                        driverId,
+                        location,
+                        timestamp: new Date().toISOString()
+                    });
+                });
+
+                // Handle delivery status updates
+                socket.on('delivery-status-update', (data) => {
+                    const { deliveryId, status, driverId } = data;
+
+                    // Broadcast to admin room
+                    this.io.to('admin-room').emit('delivery-status-changed', {
+                        deliveryId,
+                        status,
+                        driverId,
+                        timestamp: new Date().toISOString()
+                    });
+                });
+
+                // Handle general notifications
+                socket.on('notification', (data) => {
+                    const userInfo = this.connectedUsers.get(socket.id);
+
+                    // Broadcast notification to appropriate rooms
+                    if (data.target === 'drivers') {
+                        this.io.to('drivers-room').emit('notification', data);
+                    } else if (data.target === 'admins') {
+                        this.io.to('admin-room').emit('notification', data);
+                    } else {
+                        // Broadcast to all
+                        this.io.emit('notification', data);
+                    }
+                });
+
+                // Handle emergency alerts
+                socket.on('emergency-alert', async (data) => {
+                    console.log('🚨 Emergency alert received:', data);
+
+                    const { driverId, message, location } = data;
+
+                    // Broadcast emergency alert to admin room
+                    this.io.to('admin-room').emit('emergency-alert', {
+                        driverId,
+                        message,
+                        location,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    console.log(`🚨 Emergency alert broadcasted to admin room for driver ${driverId}`);
+                });
+
+                // Handle emergency reply from admin
+                socket.on('emergency-reply', (data) => {
+                    const { driverId, message, adminId } = data;
+
+                    // Send reply to specific driver
+                    this.io.to(`driver-${driverId}`).emit('emergency-reply', {
+                        message,
+                        adminId,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    console.log(`📞 Emergency reply sent to driver ${driverId}`);
+                });
+
+                socket.on('disconnect', () => {
+                    const userInfo = this.connectedUsers.get(socket.id);
+                    if (userInfo) {
+                        console.log(`User ${userInfo.userId} (${userInfo.userType}) disconnected`);
+                        this.connectedUsers.delete(socket.id);
+                    }
+                    console.log('User disconnected:', socket.id);
+                });
             });
 
-            socket.on('disconnect', () => {
-                const userInfo = this.connectedUsers.get(socket.id);
-                if (userInfo) {
-                    console.log(`User ${userInfo.userId} (${userInfo.userType}) disconnected`);
-                    this.connectedUsers.delete(socket.id);
-                }
-                console.log('User disconnected:', socket.id);
-            });
-        });
+            this.isInitialized = true;
+            console.log('✅ Socket.IO service initialized successfully');
+        } catch (error) {
+            console.error('❌ Error initializing Socket.IO service:', error);
+            this.isInitialized = false;
+        }
+    }
 
-        console.log('Socket.IO service initialized');
+    // Check if socket service is available
+    isAvailable() {
+        return this.isInitialized && this.io !== null;
     }
 
     // Method to emit driver status update
     emitDriverStatusUpdate(driverData) {
-        if (this.io) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for RealTimeDriverStatus');
+                return;
+            }
+
+            if (!driverData || !driverData._id) {
+                console.log('⚠️ Invalid driver data provided for status update');
+                return;
+            }
+
             const eventData = {
                 driverId: driverData._id,
-                name: driverData.name,
-                email: driverData.email,
-                isOnline: driverData.isActive, // Use isActive as online status
-                isActive: driverData.isActive,
+                name: driverData.name || 'Unknown',
+                email: driverData.email || '',
+                isOnline: driverData.isActive || false, // Use isActive as online status
+                isActive: driverData.isActive || false,
                 lastLogin: driverData.lastLogin,
-                area: driverData.area,
-                totalDeliveries: driverData.totalDeliveries,
-                completedDeliveries: driverData.completedDeliveries,
-                totalEarnings: driverData.totalEarnings,
-                rating: driverData.rating,
+                area: driverData.area || '',
+                totalDeliveries: driverData.totalDeliveries || 0,
+                completedDeliveries: driverData.completedDeliveries || 0,
+                totalEarnings: driverData.totalEarnings || 0,
+                rating: driverData.rating || 0,
                 timestamp: new Date().toISOString()
             };
 
-            console.log('Emitting driver status update:', eventData);
+            console.log('📡 Emitting driver status update:', eventData);
             this.io.to('admin-room').emit('driver-status-changed', eventData);
-        } else {
-            console.log('Socket.IO not initialized');
+        } catch (error) {
+            console.error('❌ Error emitting driver status update:', error);
         }
     }
 
     // Method to emit delivery status update
     emitDeliveryStatusUpdate(deliveryData) {
-        if (this.io) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for delivery status update');
+                return;
+            }
+
             this.io.to('admin-room').emit('delivery-status-changed', {
                 deliveryId: deliveryData._id,
                 deliveryCode: deliveryData.deliveryCode,
@@ -251,12 +201,19 @@ class SocketService {
                 driverId: deliveryData.assignedTo,
                 timestamp: new Date().toISOString()
             });
+        } catch (error) {
+            console.error('❌ Error emitting delivery status update:', error);
         }
     }
 
     // Method to emit new notification
     emitNewNotification(notification) {
-        if (this.io) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for notification');
+                return;
+            }
+
             console.log('🔔 Emitting new notification:', notification);
 
             // Emit to appropriate room based on recipient model
@@ -284,28 +241,40 @@ class SocketService {
                 this.io.to('drivers-room').emit('new-notification', notification);
                 console.log('📨 Emitted notification to both admin and drivers rooms');
             }
-        } else {
-            console.log('❌ Socket.IO not initialized');
+        } catch (error) {
+            console.error('❌ Error emitting new notification:', error);
         }
     }
 
     // Method to emit admin notification with sound
     emitAdminNotification(notification, sound = null) {
-        if (this.io) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for admin notification');
+                return;
+            }
+
             const eventData = {
                 notification,
                 sound,
                 timestamp: new Date().toISOString()
             };
-            console.log(`Emitting admin notification with sound: ${sound}`);
+            console.log(`📢 Emitting admin notification with sound: ${sound}`);
             this.io.to('admin-room').emit('admin-notification', eventData);
+        } catch (error) {
+            console.error('❌ Error emitting admin notification:', error);
         }
     }
 
     // Method to emit notification update
     emitNotificationUpdate(notification) {
-        if (this.io) {
-            console.log('Emitting notification update:', notification);
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for notification update');
+                return;
+            }
+
+            console.log('📝 Emitting notification update:', notification);
 
             // Emit to appropriate room based on recipient model
             if (notification.recipientModel === 'Driver') {
@@ -322,6 +291,8 @@ class SocketService {
                 this.io.to('drivers-room').emit('notification-updated', notification);
                 console.log('📨 Emitted notification update to both admin and drivers rooms');
             }
+        } catch (error) {
+            console.error('❌ Error emitting notification update:', error);
         }
     }
 
@@ -350,6 +321,17 @@ class SocketService {
             }
         }
         return count;
+    }
+
+    // Method to get socket service status
+    getStatus() {
+        return {
+            isInitialized: this.isInitialized,
+            isAvailable: this.isAvailable(),
+            connectedUsers: this.getConnectedUsersCount(),
+            connectedAdmins: this.getConnectedAdminsCount(),
+            connectedDrivers: this.getConnectedDriversCount()
+        };
     }
 }
 

@@ -4,7 +4,8 @@ const {
     authenticateToken,
     adminOnly,
     driverOnly,
-    requirePermission
+    requirePermission,
+    validateUserContext
 } = require('../middleware/auth');
 const {
     validate,
@@ -19,6 +20,7 @@ const router = express.Router();
 
 // Apply middleware to all notification routes
 router.use(authenticateToken);
+router.use(validateUserContext);
 router.use(sanitizeInput);
 
 // Common notification routes (for both admin and driver)

@@ -21,7 +21,33 @@ const { uploadSingleImage, handleUploadError } = require('../middleware/upload')
 
 const router = express.Router();
 
-// Apply middleware to all driver routes
+// Driver activation routes (no authentication required)
+router.get('/activate/:token',
+    DriverController.validateInvitation
+);
+
+router.post('/activate/:token',
+    validate(Joi.object({
+        phone: Joi.string().required(),
+        studentId: Joi.string().required(),
+        university: Joi.string().required(),
+        address: Joi.string().valid(
+            'Gonyeli',
+            'Kucuk',
+            'Lefkosa',
+            'Famagusta',
+            'Kyrenia',
+            'Other'
+        ).required().messages({
+            'any.only': 'Service area must be one of: Gonyeli, Kucuk, Lefkosa, Famagusta, Kyrenia, Other',
+            'any.required': 'Service area is required'
+        })
+        // No password field - OTP-only authentication
+    })),
+    DriverController.activateDriverAccount
+);
+
+// Apply middleware to all authenticated driver routes
 router.use(authenticateToken);
 router.use(driverOnly);
 router.use(sanitizeInput);

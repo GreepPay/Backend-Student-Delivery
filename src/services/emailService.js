@@ -72,6 +72,246 @@ class EmailService {
     }
   }
 
+  // Send driver invitation email (new OTP-based system)
+  async sendDriverInvitationEmail(emailData) {
+    const { name, activationLink, supportWhatsApp, supportInstagram, expiresAt } = emailData.data;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <title>Welcome to Greep SDS</title>
+          <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+              .steps { background: white; padding: 20px; border-radius: 6px; margin: 20px 0; }
+              .step { margin: 10px 0; padding: 10px; background: #f3f4f6; border-radius: 4px; }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <div class="header">
+                  <h1>🚀 Welcome to Greep SDS!</h1>
+                  <p>You've been invited to join our delivery team</p>
+              </div>
+              
+              <div class="content">
+                  <h2>Hi ${name},</h2>
+                  
+                  <p>You've been invited to join <strong>Greep SDS</strong> as a delivery driver!</p>
+                  
+                  <p>To activate your account and start accepting delivery requests, please follow these steps:</p>
+                  
+                  <div class="steps">
+                      <div class="step">1. <strong>Click the activation link below</strong></div>
+                      <div class="step">2. <strong>Set your password</strong></div>
+                      <div class="step">3. <strong>Complete your profile information</strong></div>
+                      <div class="step">4. <strong>Upload required documents</strong></div>
+                      <div class="step">5. <strong>Start accepting deliveries!</strong></div>
+                  </div>
+                  
+                  <div style="text-align: center;">
+                      <a href="${activationLink}" class="button">Activate Your Account</a>
+                  </div>
+                  
+                  <p><strong>Important:</strong> This invitation expires on <strong>${expiresAt}</strong></p>
+                  
+                  <p>If you have any questions or need assistance, contact us:</p>
+                  <ul>
+                      <li>📱 WhatsApp: <strong>${supportWhatsApp}</strong></li>
+                      <li>📸 Instagram: <strong>${supportInstagram}</strong></li>
+                  </ul>
+                  
+                  <p>Welcome to the team!</p>
+                  
+                  <p>Best regards,<br>
+                  <strong>Greep SDS Team</strong></p>
+              </div>
+              
+              <div class="footer">
+                  <p>This is an automated message. Please do not reply to this email.</p>
+              </div>
+          </div>
+      </body>
+      </html>
+    `;
+
+    const textContent = `
+Welcome to Greep SDS!
+
+Hi ${name},
+
+You've been invited to join Greep SDS as a delivery driver!
+
+To activate your account and start accepting delivery requests, please:
+
+1. Click this activation link: ${activationLink}
+2. Set your password
+3. Complete your profile information
+4. Upload required documents
+5. Start accepting deliveries!
+
+Important: This invitation expires on ${expiresAt}
+
+If you have any questions, contact us:
+- WhatsApp: ${supportWhatsApp}
+- Instagram: ${supportInstagram}
+
+Welcome to the team!
+
+Best regards,
+Greep SDS Team
+    `;
+
+    try {
+      // For development, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
+        console.log(`📧 DEVELOPMENT: Driver invitation email would be sent to ${emailData.to}`);
+        console.log(`📧 Subject: ${emailData.subject}`);
+        console.log(`📧 Activation Link: ${activationLink}`);
+        return { success: true, messageId: 'dev-invitation-' + Date.now() };
+      }
+
+      const info = await this.transporter.sendMail({
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.EMAIL_USER}>`,
+        to: emailData.to,
+        subject: emailData.subject,
+        html: htmlContent,
+        text: textContent
+      });
+
+      console.log(`📧 Driver invitation email sent to ${emailData.to}: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Failed to send driver invitation email:', error.message);
+      throw new Error('Failed to send invitation email');
+    }
+  }
+
+  // Send driver welcome email (new OTP-based system)
+  async sendDriverWelcomeEmail(emailData) {
+    const { name, loginUrl, supportWhatsApp, supportInstagram } = emailData.data;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <title>Welcome to Greep SDS - Account Ready!</title>
+          <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+              .success { background: #d1fae5; border: 1px solid #10b981; padding: 15px; border-radius: 6px; margin: 20px 0; }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <div class="header">
+                  <h1>🎉 Welcome to Greep SDS!</h1>
+                  <p>Your account is ready to go</p>
+              </div>
+              
+              <div class="content">
+                  <h2>Hi ${name},</h2>
+                  
+                  <div class="success">
+                      <h3>✅ Your account has been successfully activated!</h3>
+                      <p>You're now ready to start accepting delivery requests and earning money.</p>
+                  </div>
+                  
+                  <p>Here's what you can do now:</p>
+                  <ul>
+                      <li>📱 <strong>Log in to your account</strong> and complete your profile</li>
+                      <li>📋 <strong>Upload required documents</strong> for verification</li>
+                      <li>🚚 <strong>Start accepting deliveries</strong> in your area</li>
+                      <li>💰 <strong>Earn money</strong> for each successful delivery</li>
+                  </ul>
+                  
+                  <div style="text-align: center;">
+                      <a href="${loginUrl}" class="button">Log In to Your Account</a>
+                  </div>
+                  
+                  <p><strong>Need help?</strong> Our support team is here for you:</p>
+                  <ul>
+                      <li>📱 WhatsApp: <strong>${supportWhatsApp}</strong></li>
+                      <li>📸 Instagram: <strong>${supportInstagram}</strong></li>
+                  </ul>
+                  
+                  <p>Welcome to the Greep SDS family!</p>
+                  
+                  <p>Best regards,<br>
+                  <strong>Greep SDS Team</strong></p>
+              </div>
+              
+              <div class="footer">
+                  <p>This is an automated message. Please do not reply to this email.</p>
+              </div>
+          </div>
+      </body>
+      </html>
+    `;
+
+    const textContent = `
+Welcome to Greep SDS - Account Ready!
+
+Hi ${name},
+
+✅ Your account has been successfully activated!
+
+You're now ready to start accepting delivery requests and earning money.
+
+Here's what you can do now:
+- Log in to your account and complete your profile
+- Upload required documents for verification
+- Start accepting deliveries in your area
+- Earn money for each successful delivery
+
+Log in to your account: ${loginUrl}
+
+Need help? Our support team is here for you:
+- WhatsApp: ${supportWhatsApp}
+- Instagram: ${supportInstagram}
+
+Welcome to the Greep SDS family!
+
+Best regards,
+Greep SDS Team
+    `;
+
+    try {
+      // For development, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
+        console.log(`📧 DEVELOPMENT: Driver welcome email would be sent to ${emailData.to}`);
+        console.log(`📧 Subject: ${emailData.subject}`);
+        console.log(`📧 Login URL: ${loginUrl}`);
+        return { success: true, messageId: 'dev-welcome-' + Date.now() };
+      }
+
+      const info = await this.transporter.sendMail({
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.EMAIL_USER}>`,
+        to: emailData.to,
+        subject: emailData.subject,
+        html: htmlContent,
+        text: textContent
+      });
+
+      console.log(`📧 Driver welcome email sent to ${emailData.to}: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Failed to send driver welcome email:', error.message);
+      throw new Error('Failed to send welcome email');
+    }
+  }
+
   // Send admin invitation email
   async sendAdminInvitation(email, name, invitedBy) {
     const subject = 'Welcome to Student Delivery Admin Team!';
@@ -601,6 +841,8 @@ class EmailService {
       </html>
     `;
   }
+
+
 }
 
 module.exports = new EmailService();

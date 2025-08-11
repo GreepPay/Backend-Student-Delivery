@@ -4,7 +4,7 @@ const EarningsConfig = require('../models/EarningsConfig');
 const AdminNotificationService = require('./adminNotificationService');
 
 class EarningsService {
-    // Default earnings rules
+    // Default earnings rules - Updated to match new structure
     static defaultEarningsRules = {
         rules: [
             {
@@ -13,7 +13,8 @@ class EarningsService {
                 driverPercentage: 60,
                 driverFixed: null,
                 companyPercentage: 40,
-                companyFixed: null
+                companyFixed: null,
+                description: 'Under 100: 60% driver, 40% company'
             },
             {
                 minFee: 101,
@@ -21,7 +22,8 @@ class EarningsService {
                 driverPercentage: null,
                 driverFixed: 100,
                 companyPercentage: null,
-                companyFixed: 50
+                companyFixed: 50,
+                description: '100-150: 100 flat fee for driver, 50 for company'
             },
             {
                 minFee: 151,
@@ -29,7 +31,8 @@ class EarningsService {
                 driverPercentage: 60,
                 driverFixed: null,
                 companyPercentage: 40,
-                companyFixed: null
+                companyFixed: null,
+                description: 'Above 150: 60% driver, 40% company'
             }
         ]
     };
@@ -315,6 +318,70 @@ class EarningsService {
         } catch (error) {
             console.error('Error getting system earnings stats:', error);
             throw error;
+        }
+    }
+
+    // Recalculate all deliveries with new earnings configuration
+    static async recalculateAllDeliveries(config) {
+        try {
+            console.log('🔄 Starting bulk earnings recalculation...');
+
+            const deliveries = await Delivery.find({});
+            let updatedCount = 0;
+
+            for (const delivery of deliveries) {
+                try {
+                    const earnings = await this.calculateEarnings(delivery.deliveryFee, config.rules);
+
+                    // Update delivery with new earnings
+                    delivery.driverEarning = earnings.driverEarning;
+                    delivery.companyEarning = earnings.companyEarning;
+                    delivery.earningsRuleApplied = earnings.ruleApplied;
+
+                    await delivery.save();
+                    updatedCount++;
+
+                    // Update driver total earnings
+                    if (delivery.assignedTo) {
+                        await this.updateDriverTotalEarnings(delivery.assignedTo);
+                    }
+                } catch (error) {
+                    console.error(`Error updating delivery ${delivery._id}:`, error);
+                }
+            }
+
+            console.log(`✅ Bulk earnings recalculation completed. Updated ${updatedCount} deliveries.`);
+            return updatedCount;
+        } catch (error) {
+            console.error('Error in bulk earnings recalculation:', error);
+            throw error;
+        }
+    }
+
+    // Update driver total earnings
+    static async updateDriverTotalEarnings(driverId) {
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) return;
+
+            const earnings = await Delivery.aggregate([
+                { $match: { assignedTo: driverId, status: 'delivered' } },
+                {
+                    $group: {
+                        _id: null,
+                        totalEarnings: { $sum: '$driverEarning' },
+                        totalDeliveries: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            if (earnings.length > 0) {
+                driver.totalEarnings = earnings[0].totalEarnings;
+                driver.totalDeliveries = earnings[0].totalDeliveries;
+                await driver.save();
+            }
+        } catch (error) {
+            console.error(`Error updating driver ${driverId} total earnings:`, error);
         }
     }
 }
