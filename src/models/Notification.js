@@ -15,29 +15,52 @@ const notificationSchema = new mongoose.Schema({
         type: String,
         required: true,
         enum: [
+            // Delivery notifications
             'delivery_assigned',
             'delivery_picked_up',
             'delivery_delivered',
             'delivery_cancelled',
+            'delivery_available',
+            'delivery-status-update',
+            'delivery-broadcast-started',
+
+            // Payment notifications
             'payment_received',
+            'earnings_update',
+            'earnings_milestone',
+
+            // Account notifications
             'account_suspended',
             'account_activated',
-            'system_alert',
-            'earnings_update',
-            'rating_received',
-            'new_message',
-            'reminder',
-            'remittance_created',
-            'remittance_calculated',
-            'remittance_completed',
-            'remittance_cancelled',
             'new_driver_registered',
             'driver_suspended',
             'driver_activated',
             'driver_active',
             'driver_inactive',
-            'earnings_milestone',
+
+            // Communication notifications
+            'new_message',
+            'admin-message',
+            'driver-message',
+            'emergency-alert',
+
+            // System notifications
+            'system_alert',
+            'system-notification',
+            'notification-read',
+
+            // Rating notifications
+            'rating_received',
             'rating_update',
+
+            // Remittance notifications
+            'reminder',
+            'remittance_created',
+            'remittance_calculated',
+            'remittance_completed',
+            'remittance_cancelled',
+
+            // Other notifications
             'low_availability'
         ]
     },

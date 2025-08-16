@@ -1,28 +1,28 @@
 const Joi = require('joi');
 
-// Validation middleware factory
+// Validation middleware
 const validate = (schema) => {
     return (req, res, next) => {
-        console.log('Validation middleware called with schema:', schema);
-        console.log('Request body:', req.body);
-
-        const { error } = schema.validate(req.body, { abortEarly: false });
-
+        const { error } = schema.validate(req.body);
         if (error) {
-            console.log('Validation error:', error.details);
-            const errors = error.details.map(detail => ({
-                field: detail.path.join('.'),
-                message: detail.message
-            }));
-
             return res.status(400).json({
                 success: false,
-                error: 'Parameter validation failed',
-                details: errors
+                error: error.details[0].message
             });
         }
+        next();
+    };
+};
 
-        console.log('Validation passed');
+const validateBody = (schema) => {
+    return (req, res, next) => {
+        const { error } = schema.validate(req.body);
+        if (error) {
+            return res.status(400).json({
+                success: false,
+                error: error.details[0].message
+            });
+        }
         next();
     };
 };
@@ -227,7 +227,18 @@ const schemas = {
         notes: Joi.string().max(500).allow(''),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
         distance: Joi.number().min(0).max(1000),
-        assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null) // MongoDB ObjectId
+        assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null), // MongoDB ObjectId
+        useAutoBroadcast: Joi.boolean().default(true),
+        broadcastRadius: Joi.number().min(1).max(50).default(5),
+        broadcastDuration: Joi.number().min(10).max(300).default(60),
+        pickupCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        }),
+        deliveryCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        })
     }),
 
     updateDelivery: Joi.object({
@@ -267,6 +278,18 @@ const schemas = {
     }),
 
     deliveryFilters: Joi.object({
+        status: Joi.string().valid('pending', 'assigned', 'picked_up', 'delivered', 'cancelled'),
+        assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
+        startDate: Joi.date(),
+        endDate: Joi.date().min(Joi.ref('startDate')),
+        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
+        paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer')
+    }),
+
+    deliveryQuery: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(20),
         status: Joi.string().valid('pending', 'assigned', 'picked_up', 'delivered', 'cancelled'),
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
         startDate: Joi.date(),
@@ -356,6 +379,320 @@ const schemas = {
         startDate: Joi.date(),
         endDate: Joi.date().min(Joi.ref('startDate')),
         driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/)
+    }),
+
+    // Remittance schemas
+    remittanceQuery: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(10),
+        status: Joi.string().valid('pending', 'completed', 'cancelled', 'overdue').optional(),
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
+        startDate: Joi.date().iso().optional(),
+        endDate: Joi.date().iso().optional()
+    }),
+
+    createRemittance: Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required(),
+        dueDateDays: Joi.number().integer().min(1).max(30).default(7)
+    }),
+
+    completeRemittance: Joi.object({
+        amount: Joi.number().min(0).required(),
+        paymentDate: Joi.date().iso().optional(),
+        reference: Joi.string().optional(),
+        notes: Joi.string().optional()
+    }),
+
+    cancelRemittance: Joi.object({
+        reason: Joi.string().min(1).max(500).required()
+    }),
+
+    remittanceId: Joi.object({
+        remittanceId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    driverId: Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    calculateRemittance: Joi.object({
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required()
+    }),
+
+    dueSoonQuery: Joi.object({
+        daysAhead: Joi.number().integer().min(1).max(30).default(3)
+    }),
+
+    bulkGenerateRemittances: Joi.object({
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required(),
+        dueDateDays: Joi.number().integer().min(1).max(30).default(7)
+    }),
+
+    // Admin management schemas
+    adminQuery: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(10),
+        role: Joi.string().valid('admin', 'super_admin').optional(),
+        isActive: Joi.boolean().optional(),
+        search: Joi.string().min(1).max(100).optional()
+    }),
+
+    createAdmin: Joi.object({
+        email: Joi.string().email().required().messages({
+            'string.email': 'Please enter a valid email address',
+            'any.required': 'Email is required'
+        }),
+        name: Joi.string().min(2).max(50).required().messages({
+            'string.min': 'Name must be at least 2 characters long',
+            'string.max': 'Name cannot exceed 50 characters',
+            'any.required': 'Name is required'
+        }),
+        role: Joi.string().valid('admin', 'super_admin').default('admin'),
+        permissions: Joi.array().items(
+            Joi.string().valid('create_delivery', 'edit_delivery', 'delete_delivery', 'manage_drivers', 'view_analytics', 'manage_remittances', 'manage_admins', 'manage_system_settings')
+        ).optional(),
+        sendInvitation: Joi.boolean().default(true)
+    }),
+
+    updateAdmin: Joi.object({
+        name: Joi.string().min(2).max(50).optional(),
+        role: Joi.string().valid('admin', 'super_admin').optional(),
+        permissions: Joi.array().items(
+            Joi.string().valid('create_delivery', 'edit_delivery', 'delete_delivery', 'manage_drivers', 'view_analytics', 'manage_remittances', 'manage_admins', 'manage_system_settings')
+        ).optional(),
+        isActive: Joi.boolean().optional()
+    }),
+
+    adminId: Joi.object({
+        id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    // System settings schemas
+    updateSystemSettings: Joi.object({
+        settings: Joi.object({
+            notifications: Joi.object({
+                email: Joi.boolean(),
+                push: Joi.boolean(),
+                sms: Joi.boolean(),
+                deliveryUpdates: Joi.boolean(),
+                driverAssignments: Joi.boolean(),
+                systemAlerts: Joi.boolean(),
+                soundEnabled: Joi.boolean()
+            }).optional(),
+            display: Joi.object({
+                language: Joi.string().valid('en', 'tr', 'es', 'fr'),
+                timezone: Joi.string(),
+                currency: Joi.string().valid('TRY', 'USD', 'EUR', 'GBP')
+            }).optional(),
+            security: Joi.object({
+                twoFactor: Joi.boolean(),
+                sessionTimeout: Joi.number().min(5).max(1440),
+                loginNotifications: Joi.boolean()
+            }).optional(),
+            delivery: Joi.object({
+                autoAssignDrivers: Joi.boolean(),
+                requireDriverConfirmation: Joi.boolean(),
+                maxDeliveryDistance: Joi.number().min(1).max(1000),
+                maxDeliveryTime: Joi.number().min(5).max(480)
+            }).optional(),
+            earnings: Joi.object({
+                commissionRate: Joi.number().min(0).max(100),
+                minimumPayout: Joi.number().min(0),
+                payoutSchedule: Joi.string().valid('daily', 'weekly', 'monthly')
+            }).optional(),
+            system: Joi.object({
+                maintenanceMode: Joi.boolean(),
+                allowNewRegistrations: Joi.boolean(),
+                maxActiveDeliveries: Joi.number().min(1).max(20),
+                driverRatingEnabled: Joi.boolean()
+            }).optional()
+        }).required()
+    }),
+
+    updateCurrency: Joi.object({
+        currency: Joi.string().valid('TRY', 'USD', 'EUR', 'GBP').required()
+    }),
+
+    // Earnings configuration schemas
+    createEarningsConfiguration: Joi.object({
+        name: Joi.string().min(3).max(100).required(),
+        rules: Joi.array().items(
+            Joi.object({
+                minFee: Joi.number().min(0).required(),
+                maxFee: Joi.number().min(0).required(),
+                driverPercentage: Joi.number().min(0).max(100).allow(null),
+                driverFixed: Joi.number().min(0).allow(null),
+                companyPercentage: Joi.number().min(0).max(100).allow(null),
+                companyFixed: Joi.number().min(0).allow(null),
+                description: Joi.string().max(200).optional()
+            })
+        ).min(1).required(),
+        notes: Joi.string().max(500).optional()
+    }),
+
+    updateEarningsConfiguration: Joi.object({
+        name: Joi.string().min(3).max(100).optional(),
+        rules: Joi.array().items(
+            Joi.object({
+                minFee: Joi.number().min(0).required(),
+                maxFee: Joi.number().min(0).required(),
+                driverPercentage: Joi.number().min(0).max(100).allow(null),
+                driverFixed: Joi.number().min(0).allow(null),
+                companyPercentage: Joi.number().min(0).max(100).allow(null),
+                companyFixed: Joi.number().min(0).allow(null),
+                description: Joi.string().max(200).optional()
+            })
+        ).min(1).optional(),
+        notes: Joi.string().max(500).optional(),
+        isActive: Joi.boolean().optional()
+    }),
+
+    earningsConfigId: Joi.object({
+        id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    // Password reset schema
+    resetAdminPassword: Joi.object({
+        sendEmail: Joi.boolean().default(true)
+    }),
+
+    // Delivery broadcast schemas
+    createDelivery: Joi.object({
+        pickupLocation: Joi.string().min(5).max(200).required().messages({
+            'string.min': 'Pickup location must be at least 5 characters',
+            'string.max': 'Pickup location cannot exceed 200 characters',
+            'any.required': 'Pickup location is required'
+        }),
+        deliveryLocation: Joi.string().min(5).max(200).required().messages({
+            'string.min': 'Delivery location must be at least 5 characters',
+            'string.max': 'Delivery location cannot exceed 200 characters',
+            'any.required': 'Delivery location is required'
+        }),
+        customerName: Joi.string().max(50).allow(''),
+        customerPhone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
+        fee: Joi.number().min(1).max(10000).required().messages({
+            'number.min': 'Fee must be greater than 0',
+            'number.max': 'Fee cannot exceed 10,000₺',
+            'any.required': 'Delivery fee is required'
+        }),
+        paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer').default('cash'),
+        estimatedTime: Joi.date().min('now').required().messages({
+            'date.min': 'Estimated time cannot be in the past',
+            'any.required': 'Estimated delivery time is required'
+        }),
+        notes: Joi.string().max(500).allow(''),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
+        distance: Joi.number().min(0).max(1000),
+        pickupCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        }).optional(),
+        deliveryCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        }).optional(),
+        useAutoBroadcast: Joi.boolean().default(true),
+        broadcastRadius: Joi.number().min(1).max(50).default(5),
+        broadcastDuration: Joi.number().min(10).max(300).default(60)
+    }),
+
+    updateDelivery: Joi.object({
+        pickupLocation: Joi.string().min(5).max(200),
+        deliveryLocation: Joi.string().min(5).max(200),
+        customerName: Joi.string().max(50).allow(''),
+        customerPhone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
+        fee: Joi.number().min(1).max(10000),
+        paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer'),
+        estimatedTime: Joi.date().min('now'),
+        notes: Joi.string().max(500).allow(''),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
+        distance: Joi.number().min(0).max(1000),
+        pickupCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        }),
+        deliveryCoordinates: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        })
+    }),
+
+    deliveryQuery: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(10),
+        status: Joi.string().valid('pending', 'broadcasting', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'failed'),
+        broadcastStatus: Joi.string().valid('not_started', 'broadcasting', 'accepted', 'expired', 'manual_assignment'),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent')
+    }),
+
+    deliveryId: Joi.object({
+        id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    manualAssignment: Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    }),
+
+    updateDeliveryStatus: Joi.object({
+        status: Joi.string().valid('pending', 'broadcasting', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'failed').required(),
+        notes: Joi.string().max(500).allow('')
+    }),
+
+    broadcastQuery: Joi.object({
+        lat: Joi.number().min(-90).max(90),
+        lng: Joi.number().min(-180).max(180)
+    }),
+
+    driverDeliveryQuery: Joi.object({
+        page: Joi.number().integer().min(1).default(1),
+        limit: Joi.number().integer().min(1).max(100).default(10),
+        status: Joi.string().valid('pending', 'broadcasting', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'failed')
+    }),
+
+    // Notification schemas
+    sendMessage: Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
+        adminId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
+        message: Joi.string().min(1).max(1000).required().messages({
+            'string.min': 'Message cannot be empty',
+            'string.max': 'Message cannot exceed 1000 characters',
+            'any.required': 'Message is required'
+        })
+    }).custom((value, helpers) => {
+        if (!value.driverId && !value.adminId) {
+            return helpers.error('Either driverId or adminId is required');
+        }
+        if (value.driverId && value.adminId) {
+            return helpers.error('Cannot provide both driverId and adminId');
+        }
+        return value;
+    }),
+
+    emergencyAlert: Joi.object({
+        message: Joi.string().min(1).max(500).required().messages({
+            'string.min': 'Emergency message cannot be empty',
+            'string.max': 'Emergency message cannot exceed 500 characters',
+            'any.required': 'Emergency message is required'
+        }),
+        location: Joi.object({
+            lat: Joi.number().min(-90).max(90),
+            lng: Joi.number().min(-180).max(180)
+        }).optional()
+    }),
+
+    systemNotification: Joi.object({
+        recipients: Joi.array().items(Joi.object({
+            _id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+            userType: Joi.string().valid('admin', 'driver').required()
+        })).min(1).required(),
+        type: Joi.string().required(),
+        title: Joi.string().required(),
+        message: Joi.string().required(),
+        data: Joi.object().optional()
     })
 };
 
@@ -562,10 +899,11 @@ module.exports = {
     validate,
     validateQuery,
     validateParams,
-    sanitizeInput,
-    validateFileUpload,
+    validateBody,
     validateBatchOperation,
     schemas,
     paramSchemas,
+    sanitizeInput,
+    validateFileUpload,
     customValidators
 };

@@ -842,6 +842,200 @@ Greep SDS Team
     `;
   }
 
+  // Send remittance notification email to driver
+  async sendRemittanceNotificationEmail(driverEmail, driverName, remittanceData) {
+    try {
+      const subject = `Remittance Due - Reference: ${remittanceData.referenceNumber}`;
+
+      const htmlContent = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #2c3e50;">Remittance Due Notice</h2>
+                    
+                    <p>Dear ${driverName},</p>
+                    
+                    <p>This is to notify you that you have a remittance payment due to Greep SDS.</p>
+                    
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="color: #e74c3c; margin-top: 0;">Remittance Details:</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            <li><strong>Reference Number:</strong> ${remittanceData.referenceNumber}</li>
+                            <li><strong>Amount Due:</strong> ₺${remittanceData.amount}</li>
+                            <li><strong>Due Date:</strong> ${new Date(remittanceData.dueDate).toLocaleDateString()}</li>
+                            <li><strong>Delivery Count:</strong> ${remittanceData.deliveryCount} deliveries</li>
+                            <li><strong>Period:</strong> ${new Date(remittanceData.period.startDate).toLocaleDateString()} - ${new Date(remittanceData.period.endDate).toLocaleDateString()}</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Please ensure payment is made by the due date to avoid any penalties.</strong></p>
+                    
+                    <p>If you have any questions, please contact our support team.</p>
+                    
+                    <p>Best regards,<br>Greep SDS Team</p>
+                </div>
+            `;
+
+      await this.sendEmail(driverEmail, subject, htmlContent);
+      console.log(`Remittance notification email sent to ${driverEmail}`);
+    } catch (error) {
+      console.error('Error sending remittance notification email:', error);
+      throw error;
+    }
+  }
+
+  // Send remittance reminder email to driver
+  async sendRemittanceReminderEmail(driverEmail, driverName, remittanceData) {
+    try {
+      const subject = `Remittance Reminder - Overdue Payment`;
+
+      const htmlContent = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #e74c3c;">Remittance Payment Reminder</h2>
+                    
+                    <p>Dear ${driverName},</p>
+                    
+                    <p>This is a reminder that your remittance payment is overdue.</p>
+                    
+                    <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                        <h3 style="color: #856404; margin-top: 0;">Overdue Remittance:</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            <li><strong>Reference Number:</strong> ${remittanceData.referenceNumber}</li>
+                            <li><strong>Amount Due:</strong> ₺${remittanceData.amount}</li>
+                            <li><strong>Due Date:</strong> ${new Date(remittanceData.dueDate).toLocaleDateString()}</li>
+                            <li><strong>Days Overdue:</strong> ${remittanceData.overdueDays} days</li>
+                            <li><strong>Delivery Count:</strong> ${remittanceData.deliveryCount} deliveries</li>
+                        </ul>
+                    </div>
+                    
+                    <p><strong>Please make payment immediately to avoid further penalties.</strong></p>
+                    
+                    <p>If you have any questions, please contact our support team.</p>
+                    
+                    <p>Best regards,<br>Greep SDS Team</p>
+                </div>
+            `;
+
+      await this.sendEmail(driverEmail, subject, htmlContent);
+      console.log(`Remittance reminder email sent to ${driverEmail}`);
+    } catch (error) {
+      console.error('Error sending remittance reminder email:', error);
+      throw error;
+    }
+  }
+
+  // Send remittance completion email to driver
+  async sendRemittanceCompletionEmail(driverEmail, driverName, remittanceData) {
+    try {
+      const subject = `Remittance Payment Confirmed - Reference: ${remittanceData.referenceNumber}`;
+
+      const htmlContent = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #27ae60;">Remittance Payment Confirmed</h2>
+                    
+                    <p>Dear ${driverName},</p>
+                    
+                    <p>Your remittance payment has been successfully received and processed.</p>
+                    
+                    <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
+                        <h3 style="color: #155724; margin-top: 0;">Payment Details:</h3>
+                        <ul style="list-style: none; padding: 0;">
+                            <li><strong>Reference Number:</strong> ${remittanceData.referenceNumber}</li>
+                            <li><strong>Amount Paid:</strong> ₺${remittanceData.amount}</li>
+                            <li><strong>Payment Date:</strong> ${new Date(remittanceData.paymentDate).toLocaleDateString()}</li>
+                            <li><strong>Payment Reference:</strong> ${remittanceData.paymentReference || 'N/A'}</li>
+                        </ul>
+                    </div>
+                    
+                    <p>Thank you for your prompt payment. Your account is now up to date.</p>
+                    
+                    <p>If you have any questions, please contact our support team.</p>
+                    
+                    <p>Best regards,<br>Greep SDS Team</p>
+                </div>
+            `;
+
+      await this.sendEmail(driverEmail, subject, htmlContent);
+      console.log(`Remittance completion email sent to ${driverEmail}`);
+    } catch (error) {
+      console.error('Error sending remittance completion email:', error);
+      throw error;
+    }
+  }
+
+  // Send admin invitation email
+  async sendAdminInvitation(adminEmail, adminName, invitedBy, tempPassword) {
+    try {
+      const subject = `Admin Invitation - Greep SDS`;
+
+      const htmlContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2c3e50;">Admin Invitation</h2>
+              
+              <p>Dear ${adminName},</p>
+              
+              <p>You have been invited to join the Greep SDS admin team by ${invitedBy}.</p>
+              
+              <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                  <h3 style="color: #2c3e50; margin-top: 0;">Your Login Credentials:</h3>
+                  <ul style="list-style: none; padding: 0;">
+                      <li><strong>Email:</strong> ${adminEmail}</li>
+                      <li><strong>Temporary Password:</strong> ${tempPassword}</li>
+                  </ul>
+              </div>
+              
+              <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
+              
+              <p>You can access the admin panel at: <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin">Admin Panel</a></p>
+              
+              <p>If you have any questions, please contact the system administrator.</p>
+              
+              <p>Best regards,<br>Greep SDS Team</p>
+          </div>
+      `;
+
+      await this.sendEmail(adminEmail, subject, htmlContent);
+      console.log(`Admin invitation email sent to ${adminEmail}`);
+    } catch (error) {
+      console.error('Error sending admin invitation email:', error);
+      throw error;
+    }
+  }
+
+  // Send admin password reset email
+  async sendAdminPasswordReset(adminEmail, adminName, tempPassword) {
+    try {
+      const subject = `Password Reset - Greep SDS Admin`;
+
+      const htmlContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #e74c3c;">Password Reset</h2>
+              
+              <p>Dear ${adminName},</p>
+              
+              <p>Your admin password has been reset by a super administrator.</p>
+              
+              <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                  <h3 style="color: #856404; margin-top: 0;">Your New Temporary Password:</h3>
+                  <p style="font-size: 18px; font-weight: bold; color: #856404;">${tempPassword}</p>
+              </div>
+              
+              <p><strong>Security Notice:</strong> Please change this password immediately after logging in.</p>
+              
+              <p>You can access the admin panel at: <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin">Admin Panel</a></p>
+              
+              <p>If you did not request this password reset, please contact the system administrator immediately.</p>
+              
+              <p>Best regards,<br>Greep SDS Team</p>
+          </div>
+      `;
+
+      await this.sendEmail(adminEmail, subject, htmlContent);
+      console.log(`Admin password reset email sent to ${adminEmail}`);
+    } catch (error) {
+      console.error('Error sending admin password reset email:', error);
+      throw error;
+    }
+  }
+
 
 }
 

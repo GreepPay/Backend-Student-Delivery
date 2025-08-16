@@ -37,6 +37,7 @@
     "multer": "^2.0.2",
     "nodemailer": "^6.10.1",
     "nodemon": "^3.1.10",
+    "pdfkit": "^0.17.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

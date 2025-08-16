@@ -40,6 +40,10 @@ const driverSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isOnline: {
+        type: Boolean,
+        default: false
+    },
     isSuspended: {
         type: Boolean,
         default: false

@@ -1,119 +1,52 @@
 const mongoose = require('mongoose');
 
 const deliverySchema = new mongoose.Schema({
-    deliveryCode: {
-        type: String,
-        unique: true
-    },
     pickupLocation: {
         type: String,
         required: [true, 'Pickup location is required'],
-        trim: true
-    },
-    pickupLocationLink: {
-        type: String,
         trim: true,
-        validate: {
-            validator: function (v) {
-                if (!v) return true; // Allow empty
-                return /^https?:\/\/.+/.test(v);
-            },
-            message: 'Pickup location link must be a valid URL'
-        }
+        minlength: [5, 'Pickup location must be at least 5 characters long']
     },
     deliveryLocation: {
         type: String,
         required: [true, 'Delivery location is required'],
-        trim: true
-    },
-    deliveryLocationLink: {
-        type: String,
         trim: true,
-        validate: {
-            validator: function (v) {
-                if (!v) return true; // Allow empty
-                return /^https?:\/\/.+/.test(v);
-            },
-            message: 'Delivery location link must be a valid URL'
-        }
+        minlength: [5, 'Delivery location must be at least 5 characters long']
     },
     customerName: {
         type: String,
+        maxlength: [50, 'Customer name cannot exceed 50 characters'],
         trim: true
     },
     customerPhone: {
         type: String,
-        trim: true,
-        match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
+        match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number'],
+        trim: true
+    },
+    deliveryCode: {
+        type: String,
+        unique: true,
+        required: false
     },
     fee: {
         type: Number,
         required: [true, 'Delivery fee is required'],
-        default: 150,
-        min: [1, 'Fee must be greater than 0']
-    },
-    driverEarning: {
-        type: Number,
-        required: true,
-        default: 100,
-        min: 0
-    },
-    companyEarning: {
-        type: Number,
-        required: true,
-        default: 50,
-        min: 0
-    },
-    assignedTo: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Driver'
-    },
-    assignedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Admin',
-        required: true
-    },
-    status: {
-        type: String,
-        enum: ['pending', 'assigned', 'picked_up', 'delivered', 'cancelled'],
-        default: 'pending'
-    },
-    remittanceStatus: {
-        type: String,
-        enum: ['pending', 'settled'],
-        default: 'pending'
-    },
-    remittanceId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Remittance'
-    },
-    settledAt: {
-        type: Date
+        min: [1, 'Fee must be greater than 0'],
+        max: [10000, 'Fee cannot exceed 10,000₺']
     },
     paymentMethod: {
         type: String,
         enum: ['cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer'],
         default: 'cash'
     },
-    deliveryTime: {
-        type: Date
-    },
     estimatedTime: {
-        type: Date
-    },
-    assignedAt: {
-        type: Date
-    },
-    pickedUpAt: {
-        type: Date
-    },
-    deliveredAt: {
-        type: Date
+        type: Date,
+        required: [true, 'Estimated delivery time is required']
     },
     notes: {
         type: String,
-        trim: true,
-        maxlength: [500, 'Notes cannot exceed 500 characters']
+        maxlength: [500, 'Notes cannot exceed 500 characters'],
+        trim: true
     },
     priority: {
         type: String,
@@ -121,137 +54,234 @@ const deliverySchema = new mongoose.Schema({
         default: 'normal'
     },
     distance: {
-        type: Number, // in kilometers
-        min: 0
-    },
-    deliveryProof: {
-        type: String, // URL to image or document
-        trim: true
-    },
-    rating: {
         type: Number,
-        min: 1,
-        max: 5
+        min: [0, 'Distance cannot be negative'],
+        max: [1000, 'Distance cannot exceed 1000 km']
     },
-    feedback: {
+    status: {
         type: String,
-        trim: true,
-        maxlength: [1000, 'Feedback cannot exceed 1000 characters']
+        enum: ['pending', 'broadcasting', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'failed'],
+        default: 'pending'
+    },
+    // Automatic broadcast fields
+    broadcastStatus: {
+        type: String,
+        enum: ['not_started', 'broadcasting', 'accepted', 'expired', 'manual_assignment'],
+        default: 'not_started'
+    },
+    broadcastStartTime: {
+        type: Date
+    },
+    broadcastEndTime: {
+        type: Date
+    },
+    broadcastRadius: {
+        type: Number,
+        default: 5, // km
+        min: [1, 'Broadcast radius must be at least 1 km'],
+        max: [50, 'Broadcast radius cannot exceed 50 km']
+    },
+    broadcastDuration: {
+        type: Number,
+        default: 60, // seconds
+        min: [10, 'Broadcast duration must be at least 10 seconds'],
+        max: [300, 'Broadcast duration cannot exceed 5 minutes']
+    },
+    broadcastAttempts: {
+        type: Number,
+        default: 0,
+        min: [0, 'Broadcast attempts cannot be negative']
+    },
+    maxBroadcastAttempts: {
+        type: Number,
+        default: 3,
+        min: [1, 'Max broadcast attempts must be at least 1'],
+        max: [5, 'Max broadcast attempts cannot exceed 5']
+    },
+    // Driver assignment
+    assignedTo: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Driver'
+    },
+    assignedAt: {
+        type: Date
+    },
+    acceptedAt: {
+        type: Date
+    },
+    // Location coordinates for distance calculation
+    pickupCoordinates: {
+        lat: {
+            type: Number,
+            min: [-90, 'Invalid latitude'],
+            max: [90, 'Invalid latitude']
+        },
+        lng: {
+            type: Number,
+            min: [-180, 'Invalid longitude'],
+            max: [180, 'Invalid longitude']
+        }
+    },
+    deliveryCoordinates: {
+        lat: {
+            type: Number,
+            min: [-90, 'Invalid latitude'],
+            max: [90, 'Invalid latitude']
+        },
+        lng: {
+            type: Number,
+            min: [-180, 'Invalid longitude'],
+            max: [180, 'Invalid longitude']
+        }
+    },
+    // Remittance tracking
+    remittanceStatus: {
+        type: String,
+        enum: ['pending', 'settled', 'overdue'],
+        default: 'pending'
+    },
+    remittanceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Remittance'
+    },
+    // Timestamps
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    },
+    pickedUpAt: {
+        type: Date
+    },
+    deliveredAt: {
+        type: Date
+    },
+    cancelledAt: {
+        type: Date
+    },
+    // Created by
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: true
     }
 }, {
     timestamps: true
 });
 
 // Indexes for better query performance
-deliverySchema.index({ status: 1, createdAt: -1 });
+deliverySchema.index({ status: 1, broadcastStatus: 1 });
 deliverySchema.index({ assignedTo: 1, status: 1 });
-deliverySchema.index({ assignedBy: 1, createdAt: -1 });
+deliverySchema.index({ broadcastStatus: 1, broadcastEndTime: 1 });
+deliverySchema.index({ pickupCoordinates: '2dsphere' });
+deliverySchema.index({ deliveryCoordinates: '2dsphere' });
 deliverySchema.index({ createdAt: -1 });
+deliverySchema.index({ priority: 1, status: 1 });
 
-// Pre-save middleware to generate delivery code
-deliverySchema.pre('save', async function (next) {
-    if (this.isNew && !this.deliveryCode) {
-        // Generate GRP- format with random 6-digit number
-        const randomNumber = Math.floor(100000 + Math.random() * 900000);
-        this.deliveryCode = `GRP-${randomNumber}`;
-    }
+// Pre-save middleware to update updatedAt and generate delivery code
+deliverySchema.pre('save', function (next) {
+    this.updatedAt = new Date();
 
-    // Set assignment timestamp
-    if (this.isModified('assignedTo') && this.assignedTo && !this.assignedAt) {
-        this.assignedAt = new Date();
-        if (this.status === 'pending') {
-            this.status = 'assigned';
-        }
-    }
-
-    // Set status-specific timestamps
-    if (this.isModified('status')) {
-        const now = new Date();
-        switch (this.status) {
-            case 'picked_up':
-                if (!this.pickedUpAt) this.pickedUpAt = now;
-                break;
-            case 'delivered':
-                if (!this.deliveredAt) this.deliveredAt = now;
-                this.deliveryTime = now;
-                break;
-        }
+    // Generate delivery code if not already set
+    if (!this.deliveryCode) {
+        const timestamp = Date.now().toString().slice(-6);
+        const random = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+        this.deliveryCode = `GRP-${timestamp}${random}`;
     }
 
     next();
 });
 
-// Virtual for delivery duration (in minutes)
-deliverySchema.virtual('deliveryDuration').get(function () {
-    if (!this.assignedAt || !this.deliveredAt) return null;
-    return Math.round((this.deliveredAt - this.assignedAt) / (1000 * 60));
-});
-
-// Virtual for status color (for frontend)
-deliverySchema.virtual('statusColor').get(function () {
-    const colors = {
-        pending: '#fbbf24',
-        assigned: '#3b82f6',
-        picked_up: '#f59e0b',
-        delivered: '#10b981',
-        cancelled: '#ef4444'
-    };
-    return colors[this.status] || '#6b7280';
-});
-
-// Static method to get next delivery code
-deliverySchema.statics.getNextDeliveryCode = async function () {
-    // Generate GRP- format with random 6-digit number
-    const randomNumber = Math.floor(100000 + Math.random() * 900000);
-    return `GRP-${randomNumber}`;
+// Static method to find deliveries ready for broadcast
+deliverySchema.statics.findReadyForBroadcast = function () {
+    return this.find({
+        status: 'pending',
+        broadcastStatus: 'not_started',
+        assignedTo: null
+    }).sort({ priority: -1, createdAt: 1 });
 };
 
-// Static method to find deliveries by status
-deliverySchema.statics.findByStatus = function (status, limit = 50) {
-    return this.find({ status })
-        .populate('assignedTo', 'name email area')
-        .populate('assignedBy', 'name email')
-        .sort({ createdAt: -1 })
-        .limit(limit);
-};
-
-// Static method to find driver's deliveries
-deliverySchema.statics.findByDriver = function (driverId, status = null) {
-    const query = { assignedTo: driverId };
-    if (status) query.status = status;
-
-    return this.find(query)
-        .populate('assignedBy', 'name email')
-        .sort({ createdAt: -1 });
-};
-
-// Instance method to assign to driver
-deliverySchema.methods.assignToDriver = async function (driverId, adminId) {
-    this.assignedTo = driverId;
-    this.assignedBy = adminId;
-    this.status = 'assigned';
-    this.assignedAt = new Date();
-
-    // Update driver stats
-    const Driver = require('./Driver');
-    await Driver.findByIdAndUpdate(driverId, {
-        $inc: { totalDeliveries: 1 }
+// Static method to find active broadcasts
+deliverySchema.statics.findActiveBroadcasts = function () {
+    return this.find({
+        broadcastStatus: 'broadcasting',
+        broadcastEndTime: { $gt: new Date() }
     });
+};
 
+// Static method to find expired broadcasts
+deliverySchema.statics.findExpiredBroadcasts = function () {
+    return this.find({
+        broadcastStatus: 'broadcasting',
+        broadcastEndTime: { $lte: new Date() }
+    });
+};
+
+// Static method to find available deliveries for a driver
+deliverySchema.statics.findAvailableForDriver = function (driverId, location, radius = 5) {
+    return this.find({
+        broadcastStatus: 'broadcasting',
+        broadcastEndTime: { $gt: new Date() },
+        assignedTo: null,
+        status: 'pending'
+    }).where('pickupCoordinates').near({
+        center: {
+            type: 'Point',
+            coordinates: [location.lng, location.lat]
+        },
+        maxDistance: radius * 1000, // Convert km to meters
+        spherical: true
+    });
+};
+
+// Instance method to start broadcast
+deliverySchema.methods.startBroadcast = function () {
+    this.broadcastStatus = 'broadcasting';
+    this.broadcastStartTime = new Date();
+    this.broadcastEndTime = new Date(Date.now() + (this.broadcastDuration * 1000));
+    this.broadcastAttempts += 1;
     return this.save();
 };
 
-// Instance method to mark as delivered
-deliverySchema.methods.markAsDelivered = function (notes = '') {
-    this.status = 'delivered';
-    this.deliveredAt = new Date();
-    this.deliveryTime = new Date();
-    if (notes) this.notes = notes;
+// Instance method to accept delivery
+deliverySchema.methods.acceptDelivery = function (driverId) {
+    this.assignedTo = driverId;
+    this.assignedAt = new Date();
+    this.acceptedAt = new Date();
+    this.broadcastStatus = 'accepted';
+    this.status = 'accepted';
     return this.save();
 };
 
-// Ensure virtuals are included in JSON output
-deliverySchema.set('toJSON', { virtuals: true });
-deliverySchema.set('toObject', { virtuals: true });
+// Instance method to expire broadcast
+deliverySchema.methods.expireBroadcast = function () {
+    this.broadcastStatus = 'expired';
+    return this.save();
+};
+
+// Instance method to retry broadcast with larger radius
+deliverySchema.methods.retryBroadcast = function () {
+    if (this.broadcastAttempts < this.maxBroadcastAttempts) {
+        this.broadcastRadius = Math.min(this.broadcastRadius * 1.5, 50); // Increase radius by 50%, max 50km
+        this.broadcastDuration = Math.min(this.broadcastDuration * 1.2, 300); // Increase duration by 20%, max 5min
+        this.broadcastStatus = 'not_started';
+        return this.save();
+    } else {
+        this.broadcastStatus = 'manual_assignment';
+        return this.save();
+    }
+};
+
+// Instance method to manually assign
+deliverySchema.methods.manualAssign = function (driverId) {
+    this.assignedTo = driverId;
+    this.assignedAt = new Date();
+    this.broadcastStatus = 'manual_assignment';
+    this.status = 'accepted';
+    return this.save();
+};
 
 module.exports = mongoose.model('Delivery', deliverySchema);

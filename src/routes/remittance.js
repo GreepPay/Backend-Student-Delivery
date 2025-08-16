@@ -31,54 +31,31 @@ router.use((req, res, next) => {
 
 // Get all remittances (admin only)
 router.get('/',
-    RemittanceController.getAllRemittances
-);
-
-// Get pending remittances for dashboard (admin only)
-router.get('/pending',
-    RemittanceController.getPendingRemittances
+    RemittanceController.getRemittances
 );
 
 // Get remittance statistics (admin only)
-router.get('/stats',
-    RemittanceController.getRemittanceStats
+router.get('/statistics',
+    RemittanceController.getRemittanceStatistics
 );
 
-// Calculate and create remittance from deliveries (admin only)
-router.post('/calculate/:driverId',
-    RemittanceController.calculateRemittance
+// Get overdue remittances (admin only)
+router.get('/overdue',
+    RemittanceController.getOverdueRemittances
 );
 
-// Get unsettled deliveries for a driver (admin only)
-router.get('/unsettled/:driverId',
-    RemittanceController.getUnsettledDeliveries
+// Get remittances due soon (admin only)
+router.get('/due-soon',
+    RemittanceController.getRemittancesDueSoon
 );
 
-// Complete remittance (admin only)
-router.patch('/:remittanceId/complete',
-    RemittanceController.completeRemittance
-);
-
-// Cancel remittance (admin only)
-router.patch('/:remittanceId/cancel',
-    RemittanceController.cancelRemittance
-);
-
-// Get driver's remittances (driver can see their own, admin can see any)
-router.get('/driver/:driverId',
-    (req, res, next) => {
-        // Allow drivers to see their own remittances, admins to see any
-        const userId = req.user._id || req.user.id;
-        if (req.user.userType === 'driver' && req.params.driverId !== userId.toString()) {
-            return res.status(403).json({ success: false, message: 'Access denied' });
-        }
-        next();
-    },
-    RemittanceController.getDriverRemittances
+// Calculate remittance amount for a driver (admin only)
+router.get('/calculate/:driverId',
+    RemittanceController.calculateRemittanceAmount
 );
 
 // Get driver's remittance summary (driver can see their own, admin can see any)
-router.get('/driver/:driverId/summary',
+router.get('/summary/:driverId',
     (req, res, next) => {
         // Allow drivers to see their own summary, admins to see any
         const userId = req.user._id || req.user.id;

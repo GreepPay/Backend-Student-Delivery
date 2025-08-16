@@ -5,12 +5,15 @@ const DriverController = require('../controllers/driverController');
 const DeliveryController = require('../controllers/deliveryController');
 const NotificationController = require('../controllers/notificationController');
 const AdminNotificationController = require('../controllers/adminNotificationController');
+const RemittanceController = require('../controllers/remittanceController');
+const AdminManagementController = require('../controllers/adminManagementController');
 const {
     authenticateToken,
     adminOnly,
-    adminOrSuperAdmin,
     superAdminOnly,
-    requirePermission
+    requirePermission,
+    adminOrSuperAdmin,
+    validateUserContext
 } = require('../middleware/auth');
 const {
     validate,
@@ -19,7 +22,8 @@ const {
     sanitizeInput,
     validateBatchOperation,
     schemas,
-    paramSchemas
+    paramSchemas,
+    validateBody
 } = require('../middleware/validation');
 
 const router = express.Router();
@@ -59,6 +63,69 @@ router.get('/analytics',
     requirePermission('view_analytics'),
     validateQuery(schemas.analyticsQuery),
     AdminController.getAnalytics
+);
+
+// Enhanced Analytics & Insights Routes
+router.get('/analytics/enhanced',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getEnhancedAnalytics
+);
+
+// Specific analytics sections
+router.get('/analytics/core',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getCoreMetrics
+);
+
+router.get('/analytics/financial',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getFinancialMetrics
+);
+
+router.get('/analytics/drivers',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getDriverMetrics
+);
+
+router.get('/analytics/deliveries',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getDeliveryMetrics
+);
+
+router.get('/analytics/performance',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getPerformanceMetrics
+);
+
+router.get('/analytics/documents',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getDocumentMetrics
+);
+
+router.get('/analytics/remittances',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getRemittanceMetrics
+);
+
+router.get('/analytics/growth',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getGrowthMetrics
+);
+
+// Analytics Export Route
+router.get('/analytics/export',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.exportAnalyticsPDF
 );
 
 // Admin management (super admin only)
@@ -291,19 +358,19 @@ router.get('/leaderboard',
 
 // Delivery management
 router.get('/deliveries',
-    validateQuery(schemas.pagination.concat(schemas.deliveryFilters)),
+    validateQuery(schemas.deliveryQuery),
     DeliveryController.getDeliveries
 );
 
 router.get('/deliveries/stats',
     requirePermission('view_analytics'),
     validateQuery(schemas.analyticsQuery),
-    DeliveryController.getDeliveryStats
+    DeliveryController.getBroadcastStats
 );
 
 router.get('/deliveries/:id',
     validateParams(paramSchemas.mongoId),
-    DeliveryController.getDelivery
+    DeliveryController.getDeliveryById
 );
 
 router.post('/deliveries',
@@ -325,25 +392,25 @@ router.delete('/deliveries/:id',
     DeliveryController.deleteDelivery
 );
 
-// Delivery assignment
-router.post('/deliveries/:id/assign',
-    requirePermission('edit_delivery'),
-    validateParams(paramSchemas.mongoId),
-    validate(schemas.assignDelivery),
-    DeliveryController.assignDelivery
-);
+// Delivery assignment - Commented out until methods are implemented
+// router.post('/deliveries/:id/assign',
+//     requirePermission('edit_delivery'),
+//     validateParams(paramSchemas.mongoId),
+//     validate(schemas.assignDelivery),
+//     DeliveryController.assignDelivery
+// );
 
-router.post('/deliveries/:id/unassign',
-    requirePermission('edit_delivery'),
-    validateParams(paramSchemas.mongoId),
-    DeliveryController.unassignDelivery
-);
+// router.post('/deliveries/:id/unassign',
+//     requirePermission('edit_delivery'),
+//     validateParams(paramSchemas.mongoId),
+//     DeliveryController.unassignDelivery
+// );
 
-router.post('/deliveries/bulk',
-    requirePermission('edit_delivery'),
-    validateBatchOperation,
-    DeliveryController.bulkOperations
-);
+// router.post('/deliveries/bulk',
+//     requirePermission('edit_delivery'),
+//     validateBatchOperation,
+//     DeliveryController.bulkOperations
+// );
 
 // Data export and reporting
 router.get('/export',
@@ -503,6 +570,105 @@ router.get('/earnings',
     AdminController.getEarningsOverview
 );
 
+// NEW: Quick Actions API Endpoints
+// 1. Generate Report
+router.post('/earnings/reports/generate',
+    requirePermission('view_analytics'),
+    validate(Joi.object({
+        period: Joi.string().valid('today', 'thisWeek', 'thisMonth', 'thisYear', 'custom').required(),
+        driverId: Joi.string().default('all'),
+        format: Joi.string().valid('pdf', 'excel', 'csv').default('pdf'),
+        dateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).when('period', {
+            is: 'custom',
+            then: Joi.required(),
+            otherwise: Joi.optional()
+        })
+    })),
+    AdminController.generateEarningsReport
+);
+
+// 2. Driver Summary
+router.get('/earnings/drivers/summary',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        period: Joi.string().valid('today', 'thisWeek', 'thisMonth', 'thisYear', 'custom').default('thisMonth'),
+        driverId: Joi.string().optional(),
+        dateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).optional()
+    })),
+    AdminController.getDriverSummary
+);
+
+// 3. Platform Analytics
+router.get('/earnings/analytics',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        period: Joi.string().valid('today', 'thisWeek', 'thisMonth', 'thisYear', 'custom').default('thisMonth'),
+        groupBy: Joi.string().valid('daily', 'weekly', 'monthly').default('daily'),
+        dateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).optional()
+    })),
+    AdminController.getPlatformAnalytics
+);
+
+// 4. Period Comparison
+router.get('/earnings/comparison',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        currentPeriod: Joi.string().valid('today', 'thisWeek', 'thisMonth', 'thisYear', 'custom').required(),
+        previousPeriod: Joi.string().valid('yesterday', 'lastWeek', 'lastMonth', 'lastYear', 'custom').required(),
+        currentDateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).optional(),
+        previousDateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).optional()
+    })),
+    AdminController.getPeriodComparison
+);
+
+// 5. Top Performers
+router.get('/earnings/top-performers',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        period: Joi.string().valid('today', 'thisWeek', 'thisMonth', 'thisYear', 'custom').default('thisMonth'),
+        limit: Joi.number().integer().min(1).max(50).default(10),
+        sortBy: Joi.string().valid('earnings', 'deliveries', 'average').default('earnings'),
+        dateRange: Joi.object({
+            start: Joi.date().iso(),
+            end: Joi.date().iso()
+        }).optional()
+    })),
+    AdminController.getTopPerformers
+);
+
+// 6. Download Generated Report
+router.get('/earnings/reports/download/:reportId',
+    requirePermission('view_analytics'),
+    validateParams(Joi.object({
+        reportId: Joi.string().required()
+    })),
+    AdminController.downloadEarningsReport
+);
+
+// 7. Get Report Status
+router.get('/earnings/reports/status/:reportId',
+    requirePermission('view_analytics'),
+    validateParams(Joi.object({
+        reportId: Joi.string().required()
+    })),
+    AdminController.getReportStatus
+);
+
 router.put('/earnings/rules',
     requirePermission('manage_earnings'),
     validate(Joi.object({
@@ -559,6 +725,176 @@ router.get('/socket-status',
             message: 'Socket service status retrieved successfully'
         });
     }
+);
+
+// ========================================
+// REMITTANCE MANAGEMENT ROUTES
+// ========================================
+
+// Remittance Management Endpoints
+router.get('/remittances',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.remittanceQuery),
+    RemittanceController.getRemittances
+);
+
+router.post('/remittances',
+    requirePermission('manage_remittances'),
+    validateBody(schemas.createRemittance),
+    RemittanceController.createRemittance
+);
+
+// Remittance Management - Additional Endpoints
+router.post('/remittances/:remittanceId/reminder',
+    requirePermission('manage_remittances'),
+    validateParams(schemas.remittanceId),
+    RemittanceController.sendReminder
+);
+
+router.get('/remittances/calculate/:driverId',
+    requirePermission('view_analytics'),
+    validateParams(schemas.driverId),
+    validateQuery(schemas.calculateRemittance),
+    RemittanceController.calculateRemittanceAmount
+);
+
+router.get('/remittances/summary/:driverId',
+    requirePermission('view_analytics'),
+    validateParams(schemas.driverId),
+    RemittanceController.getDriverRemittanceSummary
+);
+
+router.get('/remittances/overdue',
+    requirePermission('view_analytics'),
+    RemittanceController.getOverdueRemittances
+);
+
+router.get('/remittances/due-soon',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.dueSoonQuery),
+    RemittanceController.getRemittancesDueSoon
+);
+
+router.get('/remittances/statistics',
+    requirePermission('view_analytics'),
+    RemittanceController.getRemittanceStatistics
+);
+
+router.post('/remittances/bulk-generate',
+    requirePermission('manage_remittances'),
+    validateBody(schemas.bulkGenerateRemittances),
+    RemittanceController.bulkGenerateRemittances
+);
+
+router.get('/remittances/payment-structure',
+    requirePermission('view_analytics'),
+    RemittanceController.getPaymentStructure
+);
+
+router.get('/remittances/:remittanceId',
+    requirePermission('view_analytics'),
+    validateParams(schemas.remittanceId),
+    RemittanceController.getRemittanceById
+);
+
+router.put('/remittances/:remittanceId/complete',
+    requirePermission('manage_remittances'),
+    validateParams(schemas.remittanceId),
+    validateBody(schemas.completeRemittance),
+    RemittanceController.completeRemittance
+);
+
+router.put('/remittances/:remittanceId/cancel',
+    requirePermission('manage_remittances'),
+    validateParams(schemas.remittanceId),
+    validateBody(schemas.cancelRemittance),
+    RemittanceController.cancelRemittance
+);
+
+// ========================================
+// SUPER ADMIN MANAGEMENT ROUTES
+// ========================================
+
+// Admin Management (Super Admin Only)
+router.get('/management/admins',
+    superAdminOnly,
+    validateQuery(schemas.adminQuery),
+    AdminManagementController.getAllAdmins
+);
+
+router.post('/management/admins',
+    superAdminOnly,
+    validateBody(schemas.createAdmin),
+    AdminManagementController.createAdmin
+);
+
+router.put('/management/admins/:id',
+    superAdminOnly,
+    validateParams(schemas.adminId),
+    validateBody(schemas.updateAdmin),
+    AdminManagementController.updateAdmin
+);
+
+router.delete('/management/admins/:id',
+    superAdminOnly,
+    validateParams(schemas.adminId),
+    AdminManagementController.deleteAdmin
+);
+
+router.post('/management/admins/:id/reset-password',
+    superAdminOnly,
+    validateParams(schemas.adminId),
+    validateBody(schemas.resetAdminPassword),
+    AdminManagementController.resetAdminPassword
+);
+
+// System Settings Management (Super Admin Only)
+router.get('/management/system-settings',
+    superAdminOnly,
+    AdminManagementController.getSystemSettings
+);
+
+router.put('/management/system-settings',
+    superAdminOnly,
+    validateBody(schemas.updateSystemSettings),
+    AdminManagementController.updateSystemSettings
+);
+
+router.put('/management/system-settings/currency',
+    superAdminOnly,
+    validateBody(schemas.updateCurrency),
+    AdminManagementController.updateCurrency
+);
+
+// Earnings Configuration Management (Super Admin Only)
+router.get('/management/earnings-configurations',
+    superAdminOnly,
+    AdminManagementController.getEarningsConfigurations
+);
+
+router.post('/management/earnings-configurations',
+    superAdminOnly,
+    validateBody(schemas.createEarningsConfiguration),
+    AdminManagementController.createEarningsConfiguration
+);
+
+router.put('/management/earnings-configurations/:id',
+    superAdminOnly,
+    validateParams(schemas.earningsConfigId),
+    validateBody(schemas.updateEarningsConfiguration),
+    AdminManagementController.updateEarningsConfiguration
+);
+
+router.delete('/management/earnings-configurations/:id',
+    superAdminOnly,
+    validateParams(schemas.earningsConfigId),
+    AdminManagementController.deleteEarningsConfiguration
+);
+
+// Admin Statistics (Super Admin Only)
+router.get('/management/statistics',
+    superAdminOnly,
+    AdminManagementController.getAdminStatistics
 );
 
 module.exports = router;

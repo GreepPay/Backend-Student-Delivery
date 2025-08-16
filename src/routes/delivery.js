@@ -1,119 +1,132 @@
 const express = require('express');
 const DeliveryController = require('../controllers/deliveryController');
-const {
-    authenticateToken,
-    optionalAuth
-} = require('../middleware/auth');
-const {
-    validateQuery,
-    validateParams,
-    sanitizeInput,
-    schemas,
-    paramSchemas
-} = require('../middleware/validation');
+const { authenticateToken, adminOnly, driverOnly, requirePermission } = require('../middleware/auth');
+const { validate, validateQuery, validateParams, schemas } = require('../middleware/validation');
 
 const router = express.Router();
 
-// Apply input sanitization to all routes
-router.use(sanitizeInput);
+// ========================================
+// ADMIN DELIVERY ROUTES
+// ========================================
 
-// Public routes (no authentication required)
-// These might be useful for customer tracking or public API access
-
-// Track delivery by code (public endpoint for customers)
-router.get('/track/:deliveryCode',
-    validateParams(paramSchemas.deliveryCode),
-    async (req, res) => {
-        try {
-            const { deliveryCode } = req.params;
-
-            const Delivery = require('../models/Delivery');
-            const delivery = await Delivery.findOne({ deliveryCode })
-                .select('deliveryCode status pickupLocation deliveryLocation estimatedTime createdAt deliveredAt')
-                .populate('assignedTo', 'name area');
-
-            if (!delivery) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Delivery not found'
-                });
-            }
-
-            // Return limited public information
-            res.json({
-                success: true,
-                data: {
-                    deliveryCode: delivery.deliveryCode,
-                    status: delivery.status,
-                    pickupLocation: delivery.pickupLocation,
-                    deliveryLocation: delivery.deliveryLocation,
-                    estimatedTime: delivery.estimatedTime,
-                    createdAt: delivery.createdAt,
-                    deliveredAt: delivery.deliveredAt,
-                    driver: delivery.assignedTo ? {
-                        name: delivery.assignedTo.name,
-                        area: delivery.assignedTo.area
-                    } : null
-                },
-                message: 'Delivery status retrieved successfully'
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                error: 'Failed to track delivery'
-            });
-        }
-    }
+// Create new delivery with automatic broadcast
+router.post('/',
+    authenticateToken,
+    adminOnly,
+    requirePermission('create_delivery'),
+    validate(schemas.createDelivery),
+    DeliveryController.createDelivery
 );
 
-// Get delivery statistics (public summary)
-router.get('/public/stats', async (req, res) => {
-    try {
-        const Delivery = require('../models/Delivery');
-        const Driver = require('../models/Driver');
-
-        const [totalDeliveries, completedDeliveries, activeDrivers] = await Promise.all([
-            Delivery.countDocuments(),
-            Delivery.countDocuments({ status: 'delivered' }),
-            Driver.countDocuments({ isActive: true })
-        ]);
-
-        res.json({
-            success: true,
-            data: {
-                totalDeliveries,
-                completedDeliveries,
-                activeDrivers,
-                completionRate: totalDeliveries > 0 ? Math.round((completedDeliveries / totalDeliveries) * 100) : 0
-            },
-            message: 'Public statistics retrieved successfully'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: 'Failed to retrieve statistics'
-        });
-    }
-});
-
-// Protected routes (authentication required)
-router.use(authenticateToken);
-
-// Get delivery details (authenticated users only)
-router.get('/:id',
-    validateParams(paramSchemas.mongoId),
-    DeliveryController.getDelivery
-);
-
-// Search deliveries (with optional authentication for more details)
+// Get all deliveries with broadcast status
 router.get('/',
-    validateQuery(schemas.pagination.concat(schemas.deliveryFilters)),
+    authenticateToken,
+    adminOnly,
+    requirePermission('view_analytics'),
+    validateQuery(schemas.deliveryQuery),
     DeliveryController.getDeliveries
 );
 
-// Test endpoint for delivery notifications
-router.post('/test-notification',
-    DeliveryController.testDeliveryNotification
+// Get delivery by ID
+router.get('/:id',
+    authenticateToken,
+    adminOnly,
+    requirePermission('view_analytics'),
+    validateParams(schemas.deliveryId),
+    DeliveryController.getDeliveryById
 );
+
+// Update delivery
+router.put('/:id',
+    authenticateToken,
+    adminOnly,
+    requirePermission('edit_delivery'),
+    validateParams(schemas.deliveryId),
+    validate(schemas.updateDelivery),
+    DeliveryController.updateDelivery
+);
+
+// Delete delivery
+router.delete('/:id',
+    authenticateToken,
+    adminOnly,
+    requirePermission('delete_delivery'),
+    validateParams(schemas.deliveryId),
+    DeliveryController.deleteDelivery
+);
+
+// Start broadcast for existing delivery
+router.post('/:id/broadcast',
+    authenticateToken,
+    adminOnly,
+    requirePermission('create_delivery'),
+    validateParams(schemas.deliveryId),
+    DeliveryController.startBroadcast
+);
+
+// Manual assignment (admin fallback)
+router.post('/:id/assign',
+    authenticateToken,
+    adminOnly,
+    requirePermission('edit_delivery'),
+    validateParams(schemas.deliveryId),
+    validate(schemas.manualAssignment),
+    DeliveryController.manualAssign
+);
+
+// Get broadcast statistics
+router.get('/broadcast/stats',
+    authenticateToken,
+    adminOnly,
+    requirePermission('view_analytics'),
+    DeliveryController.getBroadcastStats
+);
+
+// Handle expired broadcasts
+router.post('/broadcast/handle-expired',
+    authenticateToken,
+    adminOnly,
+    requirePermission('edit_delivery'),
+    DeliveryController.handleExpiredBroadcasts
+);
+
+// Update delivery status
+router.put('/:id/status',
+    authenticateToken,
+    requirePermission('edit_delivery'),
+    validateParams(schemas.deliveryId),
+    validate(schemas.updateDeliveryStatus),
+    DeliveryController.updateDeliveryStatus
+);
+
+// ========================================
+// DRIVER DELIVERY ROUTES
+// ========================================
+
+// Get active broadcasts for driver
+router.get('/broadcast/active',
+    authenticateToken,
+    driverOnly,
+    validateQuery(schemas.broadcastQuery),
+    DeliveryController.getActiveBroadcasts
+);
+
+// Accept delivery (for drivers)
+router.post('/:id/accept',
+    authenticateToken,
+    driverOnly,
+    validateParams(schemas.deliveryId),
+    DeliveryController.acceptDelivery
+);
+
+// Get driver's deliveries
+router.get('/driver/my-deliveries',
+    authenticateToken,
+    driverOnly,
+    validateQuery(schemas.driverDeliveryQuery),
+    DeliveryController.getDriverDeliveries
+);
+
+
 
 module.exports = router;

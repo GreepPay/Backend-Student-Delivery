@@ -1,246 +1,333 @@
 const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const Admin = require('../models/Admin');
-const Delivery = require('../models/Delivery');
-const socketService = require('./socketService');
+const SocketService = require('./socketService');
 
 class NotificationService {
-    // Create a new notification
-    static async createNotification(data) {
+    // Create notification and emit via socket
+    static async createAndEmitNotification(notificationData) {
         try {
-            const notification = await Notification.createNotification(data);
+            // Create notification in database
+            const notification = new Notification(notificationData);
+            await notification.save();
 
-            // Emit socket event for real-time notification
-            socketService.emitNewNotification(notification);
+            // Emit via socket for real-time delivery
+            SocketService.emitNewNotification({
+                recipient: notificationData.recipient,
+                recipientModel: notificationData.recipientModel,
+                type: notificationData.type,
+                title: notificationData.title,
+                message: notificationData.message,
+                data: {
+                    ...notificationData.data,
+                    notificationId: notification._id,
+                    createdAt: notification.createdAt
+                }
+            });
+
+            console.log(`📨 Notification created and emitted: ${notificationData.type} for ${notificationData.recipientModel}`);
 
             return notification;
         } catch (error) {
-            console.error('Error creating notification:', error);
+            console.error('❌ Error creating and emitting notification:', error);
             throw error;
         }
     }
 
-    // Create delivery assigned notification
-    static async createDeliveryAssignedNotification(deliveryId, driverId) {
+    // Send delivery notification to eligible drivers
+    static async sendDeliveryNotification(delivery, eligibleDrivers) {
         try {
-            console.log(`🔔 Creating delivery assigned notification for delivery ${deliveryId} to driver ${driverId}`);
+            const notifications = [];
 
-            const delivery = await Delivery.findById(deliveryId)
-                .populate('assignedBy', 'name')
-                .populate('assignedTo', 'name');
+            for (const driver of eligibleDrivers) {
+                const notificationData = {
+                    recipient: driver._id,
+                    recipientModel: 'Driver',
+                    type: 'delivery_assigned',
+                    title: 'New Delivery Available',
+                    message: `New delivery from ${delivery.pickupLocation} to ${delivery.deliveryLocation}`,
+                    data: {
+                        deliveryId: delivery._id,
+                        deliveryCode: delivery.deliveryCode,
+                        pickupLocation: delivery.pickupLocation,
+                        deliveryLocation: delivery.deliveryLocation,
+                        fee: delivery.fee,
+                        estimatedTime: delivery.estimatedTime,
+                        priority: delivery.priority,
+                        broadcastEndTime: delivery.broadcastEndTime,
+                        driverEarning: delivery.driverEarning,
+                        companyEarning: delivery.companyEarning
+                    },
+                    priority: 'high'
+                };
 
-            if (!delivery) {
-                throw new Error('Delivery not found');
+                const notification = await this.createAndEmitNotification(notificationData);
+                notifications.push(notification);
             }
 
-            console.log(`📦 Found delivery: ${delivery.deliveryCode}`);
-
-            const notification = await this.createNotification({
-                recipient: driverId,
-                recipientModel: 'Driver',
-                type: 'delivery_assigned',
-                title: 'New Delivery Assigned',
-                message: `You have been assigned a new delivery: ${delivery.deliveryCode}`,
+            // Also notify admin about the broadcast
+            await this.createAndEmitNotification({
+                recipient: delivery.createdBy,
+                recipientModel: 'Admin',
+                type: 'system_alert',
+                title: 'Delivery Broadcast Started',
+                message: `Broadcast started for delivery ${delivery.deliveryCode} to ${eligibleDrivers.length} drivers`,
                 data: {
                     deliveryId: delivery._id,
                     deliveryCode: delivery.deliveryCode,
-                    pickupLocation: delivery.pickupLocation,
-                    deliveryLocation: delivery.deliveryLocation,
-                    fee: delivery.fee,
-                    assignedBy: delivery.assignedBy?.name || 'Admin'
-                },
-                priority: 'high',
-                createdBy: delivery.assignedBy?._id,
-                createdByModel: 'Admin'
+                    eligibleDriversCount: eligibleDrivers.length,
+                    broadcastEndTime: delivery.broadcastEndTime
+                }
             });
 
-            console.log(`✅ Delivery assigned notification created: ${notification._id}`);
-            return notification;
+            console.log(`📢 Delivery notifications sent to ${notifications.length} drivers`);
+            return notifications;
         } catch (error) {
-            console.error('Error creating delivery assigned notification:', error);
+            console.error('❌ Error sending delivery notifications:', error);
             throw error;
         }
     }
 
-    // Create delivery status update notification
-    static async createDeliveryStatusNotification(deliveryId, status, driverId) {
+    // Send delivery status update notifications
+    static async sendDeliveryStatusNotification(delivery, status, driver = null) {
         try {
-            const delivery = await Delivery.findById(deliveryId)
-                .populate('assignedTo', 'name');
-
-            if (!delivery) {
-                throw new Error('Delivery not found');
-            }
-
-            let notificationData = {
-                recipient: driverId,
-                recipientModel: 'Driver',
-                data: {
-                    deliveryId: delivery._id,
-                    deliveryCode: delivery.deliveryCode
-                },
-                createdBy: delivery.assignedTo?._id,
-                createdByModel: 'Driver'
+            const statusMessages = {
+                'accepted': 'Delivery accepted by driver',
+                'picked_up': 'Delivery picked up by driver',
+                'in_transit': 'Delivery in transit',
+                'delivered': 'Delivery completed successfully',
+                'cancelled': 'Delivery cancelled',
+                'failed': 'Delivery failed'
             };
 
-            switch (status) {
-                case 'picked_up':
-                    notificationData = {
-                        ...notificationData,
-                        type: 'delivery_picked_up',
-                        title: 'Delivery Picked Up',
-                        message: `Delivery ${delivery.deliveryCode} has been picked up`,
-                        priority: 'medium'
-                    };
-                    break;
-                case 'delivered':
-                    notificationData = {
-                        ...notificationData,
-                        type: 'delivery_delivered',
-                        title: 'Delivery Completed',
-                        message: `Delivery ${delivery.deliveryCode} has been completed successfully`,
-                        priority: 'high'
-                    };
-                    break;
-                case 'cancelled':
-                    notificationData = {
-                        ...notificationData,
-                        type: 'delivery_cancelled',
-                        title: 'Delivery Cancelled',
-                        message: `Delivery ${delivery.deliveryCode} has been cancelled`,
-                        priority: 'medium'
-                    };
-                    break;
-            }
+            const message = statusMessages[status] || `Delivery status updated to ${status}`;
 
-            const notification = await this.createNotification(notificationData);
-            return notification;
-        } catch (error) {
-            console.error('Error creating delivery status notification:', error);
-            throw error;
-        }
-    }
-
-    // Create payment received notification
-    static async createPaymentNotification(deliveryId, driverId, amount) {
-        try {
-            const delivery = await Delivery.findById(deliveryId);
-
-            if (!delivery) {
-                throw new Error('Delivery not found');
-            }
-
-            const notification = await this.createNotification({
-                recipient: driverId,
-                recipientModel: 'Driver',
-                type: 'payment_received',
-                title: 'Payment Received',
-                message: `You received ₺${amount} for delivery ${delivery.deliveryCode}`,
+            // Notify admin
+            await this.createAndEmitNotification({
+                recipient: delivery.createdBy,
+                recipientModel: 'Admin',
+                type: 'delivery-status-update',
+                title: 'Delivery Status Update',
+                message: `${message} - ${delivery.deliveryCode}`,
                 data: {
                     deliveryId: delivery._id,
                     deliveryCode: delivery.deliveryCode,
-                    amount: amount
-                },
-                priority: 'high',
-                createdBy: delivery.assignedBy,
-                createdByModel: 'Admin'
+                    status: status,
+                    driverId: driver?._id,
+                    driverName: driver?.name,
+                    updatedAt: new Date()
+                }
             });
 
-            return notification;
-        } catch (error) {
-            console.error('Error creating payment notification:', error);
-            throw error;
-        }
-    }
-
-    // Create account status notification
-    static async createAccountStatusNotification(userId, userType, status, reason = null) {
-        try {
-            const notificationData = {
-                recipient: userId,
-                recipientModel: userType === 'driver' ? 'Driver' : 'Admin',
-                data: {
-                    reason: reason
-                },
-                createdBy: null,
-                createdByModel: 'System'
-            };
-
-            if (status === 'suspended') {
-                notificationData.type = 'account_suspended';
-                notificationData.title = 'Account Suspended';
-                notificationData.message = `Your account has been suspended${reason ? `: ${reason}` : ''}`;
-                notificationData.priority = 'urgent';
-            } else if (status === 'activated') {
-                notificationData.type = 'account_activated';
-                notificationData.title = 'Account Activated';
-                notificationData.message = 'Your account has been activated';
-                notificationData.priority = 'high';
+            // Notify driver if assigned
+            if (driver && delivery.assignedTo) {
+                await this.createAndEmitNotification({
+                    recipient: delivery.assignedTo,
+                    recipientModel: 'Driver',
+                    type: 'delivery-status-update',
+                    title: 'Delivery Status Updated',
+                    message: `Your delivery ${delivery.deliveryCode} status: ${status}`,
+                    data: {
+                        deliveryId: delivery._id,
+                        deliveryCode: delivery.deliveryCode,
+                        status: status,
+                        updatedAt: new Date()
+                    }
+                });
             }
 
-            const notification = await this.createNotification(notificationData);
-            return notification;
+            console.log(`📊 Delivery status notification sent for ${delivery.deliveryCode}`);
         } catch (error) {
-            console.error('Error creating account status notification:', error);
+            console.error('❌ Error sending delivery status notification:', error);
             throw error;
         }
     }
 
-    // Create earnings update notification
-    static async createEarningsNotification(driverId, amount, period) {
+    // Send admin message to driver
+    static async sendAdminMessage(driverId, message, adminId) {
         try {
-            const notification = await this.createNotification({
+            const driver = await Driver.findById(driverId);
+            const admin = await Admin.findById(adminId);
+
+            if (!driver || !admin) {
+                throw new Error('Driver or Admin not found');
+            }
+
+            await this.createAndEmitNotification({
                 recipient: driverId,
                 recipientModel: 'Driver',
-                type: 'earnings_update',
-                title: 'Earnings Update',
-                message: `You earned ₺${amount} this ${period}`,
+                type: 'admin-message',
+                title: 'Message from Admin',
+                message: message,
                 data: {
-                    amount: amount,
-                    period: period
+                    adminId: adminId,
+                    adminName: admin.name,
+                    timestamp: new Date()
                 },
-                priority: 'medium',
-                createdBy: null,
-                createdByModel: 'System'
+                priority: 'high'
             });
 
-            return notification;
+            console.log(`💬 Admin message sent to driver ${driver.name}`);
         } catch (error) {
-            console.error('Error creating earnings notification:', error);
+            console.error('❌ Error sending admin message:', error);
             throw error;
         }
     }
 
-    // Create system alert notification
-    static async createSystemAlert(recipients, title, message, priority = 'medium') {
+    // Send driver message to admin
+    static async sendDriverMessage(adminId, message, driverId) {
+        try {
+            const driver = await Driver.findById(driverId);
+            const admin = await Admin.findById(adminId);
+
+            if (!driver || !admin) {
+                throw new Error('Driver or Admin not found');
+            }
+
+            await this.createAndEmitNotification({
+                recipient: adminId,
+                recipientModel: 'Admin',
+                type: 'driver-message',
+                title: `Message from ${driver.name}`,
+                message: message,
+                data: {
+                    driverId: driverId,
+                    driverName: driver.name,
+                    driverArea: driver.area,
+                    timestamp: new Date()
+                },
+                priority: 'high'
+            });
+
+            console.log(`💬 Driver message sent to admin ${admin.name}`);
+        } catch (error) {
+            console.error('❌ Error sending driver message:', error);
+            throw error;
+        }
+    }
+
+    // Send emergency alert
+    static async sendEmergencyAlert(driverId, message, location = null) {
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                throw new Error('Driver not found');
+            }
+
+            // Get all admins
+            const admins = await Admin.find({ isActive: true });
+
+            for (const admin of admins) {
+                await this.createAndEmitNotification({
+                    recipient: admin._id,
+                    recipientModel: 'Admin',
+                    type: 'emergency-alert',
+                    title: '🚨 Emergency Alert',
+                    message: `Emergency alert from ${driver.name}: ${message}`,
+                    data: {
+                        driverId: driverId,
+                        driverName: driver.name,
+                        driverPhone: driver.phone,
+                        driverArea: driver.area,
+                        message: message,
+                        location: location,
+                        timestamp: new Date()
+                    },
+                    priority: 'urgent'
+                });
+            }
+
+            console.log(`🚨 Emergency alert sent to ${admins.length} admins`);
+        } catch (error) {
+            console.error('❌ Error sending emergency alert:', error);
+            throw error;
+        }
+    }
+
+    // Send system notifications
+    static async sendSystemNotification(recipients, type, title, message, data = {}) {
         try {
             const notifications = [];
 
             for (const recipient of recipients) {
-                const notification = await this.createNotification({
-                    recipient: recipient.id,
-                    recipientModel: recipient.type === 'driver' ? 'Driver' : 'Admin',
-                    type: 'system_alert',
+                const notification = await this.createAndEmitNotification({
+                    recipient: recipient._id,
+                    recipientModel: recipient.userType === 'admin' ? 'Admin' : 'Driver',
+                    type: type,
                     title: title,
                     message: message,
-                    priority: priority,
-                    createdBy: null,
-                    createdByModel: 'System'
+                    data: {
+                        ...data,
+                        timestamp: new Date()
+                    }
                 });
+
                 notifications.push(notification);
             }
 
+            console.log(`🔔 System notification sent to ${notifications.length} recipients`);
             return notifications;
         } catch (error) {
-            console.error('Error creating system alert:', error);
+            console.error('❌ Error sending system notification:', error);
             throw error;
         }
     }
 
-    // Get notifications for a user
-    static async getNotifications(userId, page = 1, limit = 20) {
+    // Mark notification as read
+    static async markAsRead(notificationId, userId) {
         try {
-            const notifications = await Notification.getNotifications(userId, page, limit);
+            const notification = await Notification.findOneAndUpdate(
+                { _id: notificationId, recipient: userId },
+                { isRead: true, readAt: new Date() },
+                { new: true }
+            );
+
+            if (notification) {
+                // Emit read status update
+                SocketService.emitNotificationUpdate({
+                    recipient: userId,
+                    recipientModel: notification.recipientModel,
+                    type: 'notification-read',
+                    data: {
+                        notificationId: notification._id,
+                        isRead: true,
+                        readAt: notification.readAt
+                    }
+                });
+            }
+
+            return notification;
+        } catch (error) {
+            console.error('❌ Error marking notification as read:', error);
+            throw error;
+        }
+    }
+
+    // Get unread notifications count
+    static async getUnreadCount(userId) {
+        try {
+            const count = await Notification.countDocuments({
+                recipient: userId,
+                isRead: false
+            });
+
+            return count;
+        } catch (error) {
+            console.error('❌ Error getting unread count:', error);
+            throw error;
+        }
+    }
+
+    // Get notifications for user
+    static async getUserNotifications(userId, page = 1, limit = 20) {
+        try {
+            const skip = (page - 1) * limit;
+
+            const notifications = await Notification.find({ recipient: userId })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit);
+
             const total = await Notification.countDocuments({ recipient: userId });
 
             return {
@@ -251,34 +338,7 @@ class NotificationService {
                 totalPages: Math.ceil(total / limit)
             };
         } catch (error) {
-            console.error('Error getting notifications:', error);
-            throw error;
-        }
-    }
-
-    // Get unread count for a user
-    static async getUnreadCount(userId) {
-        try {
-            return await Notification.getUnreadCount(userId);
-        } catch (error) {
-            console.error('Error getting unread count:', error);
-            throw error;
-        }
-    }
-
-    // Mark notification as read
-    static async markAsRead(notificationId, userId) {
-        try {
-            const notification = await Notification.markAsRead(notificationId, userId);
-
-            // Emit socket event for real-time update
-            if (notification) {
-                socketService.emitNotificationUpdate(notification);
-            }
-
-            return notification;
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
+            console.error('❌ Error getting user notifications:', error);
             throw error;
         }
     }
@@ -286,82 +346,26 @@ class NotificationService {
     // Mark all notifications as read
     static async markAllAsRead(userId) {
         try {
-            return await Notification.markAllAsRead(userId);
-        } catch (error) {
-            console.error('Error marking all notifications as read:', error);
-            throw error;
-        }
-    }
+            const result = await Notification.updateMany(
+                { recipient: userId, isRead: false },
+                { isRead: true, readAt: new Date() }
+            );
 
-    // Delete expired notifications
-    static async cleanupExpiredNotifications() {
-        try {
-            const result = await Notification.deleteMany({
-                expiresAt: { $lt: new Date() }
-            });
+            console.log(`✅ Marked ${result.modifiedCount} notifications as read for user ${userId}`);
             return result;
         } catch (error) {
-            console.error('Error cleaning up expired notifications:', error);
+            console.error('❌ Error marking all notifications as read:', error);
             throw error;
         }
     }
 
-    // Send document status notification to driver
-    static async sendDocumentStatusNotification(driverId, documentType, status, rejectionReason = null) {
+    // Create system alert (legacy method for backward compatibility)
+    static async createSystemAlert(recipients, title, message, priority = 'medium') {
         try {
-            const documentTypeLabels = {
-                studentId: 'Student ID',
-                profilePhoto: 'Profile Photo',
-                universityEnrollment: 'University Enrollment',
-                identityCard: 'Identity Card',
-                transportationLicense: 'Transportation License'
-            };
-
-            const documentLabel = documentTypeLabels[documentType] || documentType;
-
-            let title, message;
-
-            if (status === 'verified') {
-                title = 'Document Verified Successfully';
-                message = `Your ${documentLabel} has been verified and approved. You can now continue with your delivery activities.`;
-            } else if (status === 'rejected') {
-                title = 'Document Verification Failed';
-                message = `Your ${documentLabel} was not approved. Reason: ${rejectionReason || 'Document does not meet requirements'}. Please upload a new document.`;
-            } else if (status === 'ai_processing') {
-                title = 'Document Under AI Review';
-                message = `Your ${documentLabel} is currently being reviewed by our AI verification system. This process usually takes a few minutes.`;
-            } else {
-                title = 'Document Status Updated';
-                message = `Your ${documentLabel} status has been updated to: ${status}`;
-            }
-
-            const notification = await this.createNotification({
-                recipient: driverId,
-                recipientModel: 'Driver',
-                type: 'document_status',
-                title: title,
-                message: message,
-                priority: status === 'rejected' ? 'high' : 'medium',
-                createdBy: null,
-                createdByModel: 'System',
-                metadata: {
-                    documentType,
-                    status,
-                    rejectionReason
-                }
-            });
-
-            // Emit socket event for real-time notification
-            const socketService = require('./socketService');
-            socketService.emitNotificationUpdate(notification);
-
-            console.log(`📧 Document status notification sent to driver ${driverId}: ${status}`);
-
-            return notification;
+            return await this.sendSystemNotification(recipients, 'system_alert', title, message, { priority });
         } catch (error) {
-            console.error('Error sending document status notification:', error);
-            // Don't throw error to avoid breaking the main flow
-            return null;
+            console.error('❌ Error creating system alert:', error);
+            throw error;
         }
     }
 }

@@ -229,7 +229,10 @@ class SocketService {
                 if (room) {
                     console.log(`👥 Room ${driverRoom} has ${room.size} members`);
                 } else {
-                    console.log(`❌ Room ${driverRoom} does not exist`);
+                    console.log(`❌ Room ${driverRoom} does not exist - driver not connected`);
+                    // Fallback: emit to general drivers room
+                    this.io.to('drivers-room').emit('new-notification', notification);
+                    console.log(`📨 Fallback: Emitted to general drivers room`);
                 }
             } else if (notification.recipientModel === 'Admin') {
                 // Emit to admin room

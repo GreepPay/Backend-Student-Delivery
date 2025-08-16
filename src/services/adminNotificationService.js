@@ -73,7 +73,7 @@ class AdminNotificationService {
         try {
             const delivery = await Delivery.findById(deliveryId)
                 .populate('assignedTo', 'name')
-                .populate('assignedBy', 'name');
+
 
             if (!delivery) throw new Error('Delivery not found');
 

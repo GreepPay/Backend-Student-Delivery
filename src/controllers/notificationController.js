@@ -9,7 +9,7 @@ class NotificationController {
         const { page = 1, limit = 20 } = req.query;
 
         try {
-            const result = await NotificationService.getNotifications(user.id, parseInt(page), parseInt(limit));
+            const result = await NotificationService.getUserNotifications(user.id, parseInt(page), parseInt(limit));
 
             successResponse(res, result, 'Notifications retrieved successfully');
         } catch (error) {

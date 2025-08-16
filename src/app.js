@@ -16,6 +16,7 @@ const systemSettingsRoutes = require('./routes/systemSettings');
 const remittanceRoutes = require('./routes/remittance');
 const publicRoutes = require('./routes/public');
 const aiVerificationRoutes = require('./routes/aiVerification');
+const socketRoutes = require('./routes/socket');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -58,10 +59,16 @@ if (process.env.NODE_ENV === 'development') {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+    const mongoose = require('mongoose');
     res.status(200).json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        mongodb: {
+            connected: mongoose.connection.readyState === 1,
+            state: mongoose.connection.readyState,
+            host: mongoose.connection.host || 'Not connected'
+        }
     });
 });
 
@@ -77,6 +84,7 @@ app.use('/api/system-settings', systemSettingsRoutes);
 app.use('/api/remittance', remittanceRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/ai', aiVerificationRoutes);
+app.use('/api/socket', socketRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

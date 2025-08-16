@@ -7,7 +7,8 @@ const RemittanceController = require('../controllers/remittanceController');
 const {
     authenticateToken,
     driverOnly,
-    canAccessDriverData
+    canAccessDriverData,
+    validateUserContext
 } = require('../middleware/auth');
 const {
     validate,
@@ -133,14 +134,14 @@ router.get('/deliveries',
     DriverController.getDriverDeliveries
 );
 
-router.get('/deliveries/nearby',
-    validateQuery(schemas.deliveryFilters),
-    DeliveryController.getNearbyDeliveries
-);
+// router.get('/deliveries/nearby',
+//     validateQuery(schemas.deliveryFilters),
+//     DeliveryController.getNearbyDeliveries
+// );
 
 router.get('/deliveries/:deliveryId',
     validateParams(paramSchemas.mongoId.keys({ deliveryId: paramSchemas.mongoId.extract('id') })),
-    DeliveryController.getDelivery
+    DeliveryController.getDeliveryById
 );
 
 // Update delivery status (driver can only update their own deliveries)
@@ -185,8 +186,16 @@ router.put('/notifications/mark-all-read',
 
 // Driver remittances
 router.get('/remittances',
-    validateQuery(schemas.pagination),
-    RemittanceController.getDriverRemittancesWithSummary
+    authenticateToken,
+    validateUserContext,
+    validateQuery(schemas.remittanceQuery),
+    RemittanceController.getDriverRemittances
+);
+
+router.get('/remittances/summary',
+    authenticateToken,
+    validateUserContext,
+    RemittanceController.getDriverRemittanceSummary
 );
 
 // Leaderboard (drivers can view their ranking)

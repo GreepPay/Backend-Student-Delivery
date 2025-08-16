@@ -456,7 +456,6 @@ class DriverController {
             console.log('Delivery query:', JSON.stringify(query, null, 2));
 
             const deliveries = await Delivery.find(query)
-                .populate('assignedBy', 'fullName email')
                 .select('-__v')
                 .sort({ createdAt: -1 })
                 .limit(limit * 1)
@@ -550,7 +549,7 @@ class DriverController {
                     updatedAt: new Date()
                 },
                 { new: true, runValidators: true }
-            ).populate('assignedBy', 'name email');
+            );
 
             // Update driver stats if delivered
             if (status === 'delivered') {
@@ -1132,7 +1131,6 @@ class DriverController {
 
                 // Recent deliveries (last 10)
                 Delivery.find({ assignedTo: driverId })
-                    .populate('assignedBy', 'fullName email')
                     .select('deliveryCode pickupLocation deliveryLocation status fee driverEarning createdAt deliveredAt estimatedTime priority paymentMethod')
                     .sort({ createdAt: -1 })
                     .limit(10),
@@ -1470,13 +1468,29 @@ class DriverController {
                 });
             }
 
+            console.log('📁 File received:', {
+                originalname: file.originalname,
+                size: file.size,
+                mimetype: file.mimetype
+            });
+
             // Upload document to Cloudinary
             const uploadResult = await CloudinaryService.uploadImage(file, `driver-documents/${documentType}`);
+
+            console.log('☁️ Cloudinary upload result:', uploadResult);
 
             if (!uploadResult.success) {
                 return res.status(500).json({
                     success: false,
                     error: 'Failed to upload document: ' + uploadResult.error
+                });
+            }
+
+            if (!uploadResult.url) {
+                console.error('❌ Cloudinary upload succeeded but no URL returned:', uploadResult);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Upload succeeded but no URL returned'
                 });
             }
 
@@ -1489,27 +1503,34 @@ class DriverController {
             }
 
             // Update document upload info
-            driver.documents[documentType] = {
+            const documentData = {
                 status: 'pending',
                 uploadDate: new Date(),
                 documentUrl: uploadResult.url,
                 rejectionReason: undefined
             };
 
+            console.log('💾 Saving document data:', documentData);
+
+            driver.documents[documentType] = documentData;
+
             // Mark as modified for nested objects
             driver.markModified('documents');
-            await driver.save();
 
-            console.log('✅ Document uploaded and recorded:', uploadResult.url);
+            // Save with explicit error handling
+            const savedDriver = await driver.save();
 
-            // Trigger AI verification (optional - can be done separately)
-            // This would typically be done by an admin or automated system
-            console.log('🤖 AI verification can be triggered for:', uploadResult.url);
+            console.log('✅ Driver saved successfully:', savedDriver._id);
+            console.log('✅ Document URL saved:', savedDriver.documents[documentType].documentUrl);
+
+            // Verify the save worked
+            const verificationDriver = await Driver.findById(user.id);
+            console.log('🔍 Verification - Document URL:', verificationDriver.documents[documentType].documentUrl);
 
             successResponse(res, {
                 documentType,
                 status: 'pending',
-                uploadDate: driver.documents[documentType].uploadDate,
+                uploadDate: savedDriver.documents[documentType].uploadDate,
                 documentUrl: uploadResult.url,
                 message: 'Document uploaded successfully and pending verification'
             }, 'Document uploaded successfully and pending verification');

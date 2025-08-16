@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const remittanceSchema = new mongoose.Schema({
+    // Driver Information
     driverId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Driver',
@@ -14,6 +15,12 @@ const remittanceSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    driverPhone: {
+        type: String,
+        required: true
+    },
+
+    // Remittance Details
     amount: {
         type: Number,
         required: true,
@@ -21,7 +28,7 @@ const remittanceSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'completed', 'cancelled'],
+        enum: ['pending', 'completed', 'cancelled', 'overdue'],
         default: 'pending'
     },
     paymentMethod: {
@@ -36,8 +43,10 @@ const remittanceSchema = new mongoose.Schema({
     },
     description: {
         type: String,
-        default: 'Remittance payment'
+        default: 'Cash remittance payment'
     },
+
+    // Admin Handling
     handledBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Admin',
@@ -55,10 +64,30 @@ const remittanceSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
+
+    // Delivery Details
     deliveryIds: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Delivery'
     }],
+    deliveryCount: {
+        type: Number,
+        default: 0
+    },
+    totalDeliveryFees: {
+        type: Number,
+        default: 0
+    },
+    totalDriverEarnings: {
+        type: Number,
+        default: 0
+    },
+    totalCompanyEarnings: {
+        type: Number,
+        default: 0
+    },
+
+    // Period Information
     period: {
         startDate: {
             type: Date,
@@ -69,17 +98,87 @@ const remittanceSchema = new mongoose.Schema({
             required: true
         }
     },
-    notes: {
-        type: String,
-        default: ''
+
+    // Due Date and Notifications
+    dueDate: {
+        type: Date,
+        required: true
     },
+    reminderSent: {
+        type: Boolean,
+        default: false
+    },
+    reminderSentAt: {
+        type: Date
+    },
+    reminderCount: {
+        type: Number,
+        default: 0
+    },
+    lastReminderDate: {
+        type: Date
+    },
+
+    // Payment Details
+    actualPaymentAmount: {
+        type: Number,
+        min: 0
+    },
+    paymentDate: {
+        type: Date
+    },
+    paymentReference: {
+        type: String
+    },
+    paymentNotes: {
+        type: String
+    },
+
+    // Communication
     emailSent: {
         type: Boolean,
         default: false
     },
+    emailSentAt: {
+        type: Date
+    },
     notificationSent: {
         type: Boolean,
         default: false
+    },
+    notificationSentAt: {
+        type: Date
+    },
+
+    // Notes and Comments
+    notes: {
+        type: String,
+        default: ''
+    },
+    adminNotes: {
+        type: String,
+        default: ''
+    },
+
+    // Status Tracking
+    isOverdue: {
+        type: Boolean,
+        default: false
+    },
+    overdueDays: {
+        type: Number,
+        default: 0
+    },
+
+    // Audit Trail
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: true
+    },
+    updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin'
     }
 }, {
     timestamps: true
@@ -101,9 +200,69 @@ remittanceSchema.pre('save', async function (next) {
     next();
 });
 
-// Index for efficient queries
+// Update overdue status
+remittanceSchema.pre('save', function (next) {
+    if (this.dueDate && this.status === 'pending') {
+        const now = new Date();
+        if (now > this.dueDate) {
+            this.isOverdue = true;
+            this.overdueDays = Math.floor((now - this.dueDate) / (1000 * 60 * 60 * 24));
+            if (this.status === 'pending') {
+                this.status = 'overdue';
+            }
+        } else {
+            this.isOverdue = false;
+            this.overdueDays = 0;
+        }
+    }
+    next();
+});
+
+// Indexes for efficient queries
 remittanceSchema.index({ driverId: 1, status: 1 });
 remittanceSchema.index({ handledBy: 1 });
 remittanceSchema.index({ createdAt: -1 });
+remittanceSchema.index({ dueDate: 1 });
+remittanceSchema.index({ status: 1, dueDate: 1 });
+remittanceSchema.index({ isOverdue: 1 });
+
+// Static methods
+remittanceSchema.statics.findOverdueRemittances = function () {
+    return this.find({
+        status: { $in: ['pending', 'overdue'] },
+        dueDate: { $lt: new Date() }
+    });
+};
+
+remittanceSchema.statics.findPendingRemittances = function () {
+    return this.find({
+        status: 'pending',
+        dueDate: { $gte: new Date() }
+    });
+};
+
+remittanceSchema.statics.findDriverRemittances = function (driverId) {
+    return this.find({ driverId }).sort({ createdAt: -1 });
+};
+
+// Instance methods
+remittanceSchema.methods.calculateOverdueDays = function () {
+    if (this.dueDate && this.status === 'pending') {
+        const now = new Date();
+        if (now > this.dueDate) {
+            return Math.floor((now - this.dueDate) / (1000 * 60 * 60 * 24));
+        }
+    }
+    return 0;
+};
+
+remittanceSchema.methods.markAsCompleted = function (paymentDetails) {
+    this.status = 'completed';
+    this.actualPaymentAmount = paymentDetails.amount;
+    this.paymentDate = paymentDetails.paymentDate || new Date();
+    this.paymentReference = paymentDetails.reference;
+    this.paymentNotes = paymentDetails.notes;
+    this.handledAt = new Date();
+};
 
 module.exports = mongoose.model('Remittance', remittanceSchema); 

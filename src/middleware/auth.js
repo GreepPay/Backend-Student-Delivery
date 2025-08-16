@@ -15,7 +15,7 @@ const generateToken = (user, userType) => {
         },
         process.env.JWT_SECRET,
         {
-            expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+            expiresIn: process.env.JWT_EXPIRES_IN || '7d'
         }
     );
 };
@@ -38,7 +38,10 @@ const authenticateToken = async (req, res, next) => {
             // Check if this is an admin endpoint by looking at the URL
             const isAdminEndpoint = req.originalUrl.includes('/admin/') ||
                 req.originalUrl.includes('/remittance/') ||
-                req.method === 'POST' && req.originalUrl.includes('/remittance/calculate/');
+                req.method === 'POST' && req.originalUrl.includes('/remittance/calculate/') ||
+                req.method === 'POST' && req.originalUrl.includes('/delivery') ||
+                req.method === 'PUT' && req.originalUrl.includes('/delivery') ||
+                req.method === 'DELETE' && req.originalUrl.includes('/delivery');
 
             let mockUser;
 

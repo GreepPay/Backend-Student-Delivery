@@ -2,8 +2,10 @@ const Admin = require('../models/Admin');
 const Driver = require('../models/Driver');
 const Delivery = require('../models/Delivery');
 const AnalyticsService = require('../services/analyticsService');
+const EnhancedAnalyticsService = require('../services/enhancedAnalyticsService');
 const EmailService = require('../services/emailService');
 const DriverInvitationService = require('../services/driverInvitationService');
+const PDFDocument = require('pdfkit');
 const { catchAsync, successResponse, errorResponse, paginatedResponse } = require('../middleware/errorHandler');
 
 class AdminController {
@@ -18,7 +20,6 @@ class AdminController {
             // Get recent deliveries
             const recentDeliveries = await Delivery.find()
                 .populate('assignedTo', 'name email area')
-                .populate('assignedBy', 'name email')
                 .sort({ createdAt: -1 })
                 .limit(10);
 
@@ -49,7 +50,6 @@ class AdminController {
         try {
             const recentDeliveries = await Delivery.find()
                 .populate('assignedTo', 'name email area')
-                .populate('assignedBy', 'name email')
                 .sort({ createdAt: -1 })
                 .limit(10);
 
@@ -84,20 +84,28 @@ class AdminController {
     static getDriverStatus = catchAsync(async (req, res) => {
         try {
             const drivers = await Driver.find({ isActive: true })
-                .select('_id name email area isOnline lastLogin totalDeliveries totalEarnings rating')
+                .select('_id name email area isOnline isActive lastLogin totalDeliveries totalEarnings rating')
                 .sort({ lastLogin: -1 });
 
-            const driverStatus = drivers.map(driver => ({
-                id: driver._id,
-                name: driver.name,
-                email: driver.email,
-                area: driver.area,
-                isOnline: driver.isOnline || false,
-                lastLogin: driver.lastLogin,
-                totalDeliveries: driver.totalDeliveries || 0,
-                totalEarnings: driver.totalEarnings || 0,
-                rating: driver.rating || 0
-            }));
+            const driverStatus = drivers.map(driver => {
+                // Determine online status: driver is online if isOnline is true OR if they're active and have logged in recently
+                const isOnline = driver.isOnline === true ||
+                    (driver.isActive && driver.lastLogin &&
+                        (new Date() - new Date(driver.lastLogin)) < 15 * 60 * 1000); // 15 minutes
+
+                return {
+                    id: driver._id,
+                    name: driver.name,
+                    email: driver.email,
+                    area: driver.area,
+                    isOnline: isOnline,
+                    isActive: driver.isActive,
+                    lastLogin: driver.lastLogin,
+                    totalDeliveries: driver.totalDeliveries || 0,
+                    totalEarnings: driver.totalEarnings || 0,
+                    rating: driver.rating || 0
+                };
+            });
 
             successResponse(res, {
                 drivers: driverStatus,
@@ -250,9 +258,7 @@ class AdminController {
 
             // Send welcome email
             try {
-                console.log('🔍 Debug: Sending admin invitation to:', email, name, user.name);
                 await EmailService.sendAdminInvitation(email, name, user.name);
-                console.log('✅ Debug: Admin invitation sent successfully');
             } catch (emailError) {
                 console.error('❌ Failed to send admin invitation email:', emailError.message);
             }
@@ -392,6 +398,397 @@ class AdminController {
         }
     });
 
+    // Get enhanced comprehensive analytics
+    static getEnhancedAnalytics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const analytics = await EnhancedAnalyticsService.getPlatformAnalytics(period);
+
+            successResponse(res, analytics, 'Enhanced analytics data retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Get specific analytics sections
+    static getCoreMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getCoreMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Core metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getFinancialMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getFinancialMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Financial metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getDriverMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getDriverMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Driver metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getDeliveryMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getDeliveryMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Delivery metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getPerformanceMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getPerformanceMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Performance metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getDocumentMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getDocumentVerificationMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Document verification metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getRemittanceMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getRemittanceMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Remittance metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    static getGrowthMetrics = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const { startDate, endDate } = EnhancedAnalyticsService.getDateRange(period);
+            const metrics = await EnhancedAnalyticsService.getGrowthMetrics(startDate, endDate);
+
+            successResponse(res, {
+                period,
+                startDate,
+                endDate,
+                metrics,
+                lastUpdated: new Date().toISOString()
+            }, 'Growth metrics retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Export analytics as comprehensive PDF
+    static exportAnalyticsPDF = catchAsync(async (req, res) => {
+        const { period = 'month', format = 'pdf' } = req.query;
+        const { user } = req;
+
+        try {
+            // Get comprehensive analytics data
+            const analytics = await EnhancedAnalyticsService.getPlatformAnalytics(period);
+
+            // Create PDF document
+            const doc = new PDFDocument({
+                size: 'A4',
+                margin: 50
+            });
+
+            // Set response headers for PDF download
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="analytics-report-${period}-${new Date().toISOString().split('T')[0]}.pdf"`);
+
+            // Pipe PDF to response
+            doc.pipe(res);
+
+            // Add company header
+            doc.fontSize(24)
+                .font('Helvetica-Bold')
+                .text('Greep SDS Analytics Report', { align: 'center' })
+                .moveDown(0.5);
+
+            doc.fontSize(12)
+                .font('Helvetica')
+                .text(`Period: ${period.charAt(0).toUpperCase() + period.slice(1)}`, { align: 'center' })
+                .text(`Generated: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, { align: 'center' })
+                .text(`Generated by: ${user.name}`, { align: 'center' })
+                .moveDown(2);
+
+            // Executive Summary
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Executive Summary')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Revenue: ₺${analytics.core.totalRevenue.toLocaleString()}`)
+                .text(`• Total Deliveries: ${analytics.core.totalDeliveries}`)
+                .text(`• Completion Rate: ${analytics.core.completionRate}%`)
+                .text(`• Active Drivers: ${analytics.core.activeDrivers}/${analytics.core.totalDrivers} (${analytics.core.activeDriverRate}%)`)
+                .text(`• Online Drivers: ${analytics.core.onlineDrivers}/${analytics.core.totalDrivers} (${analytics.core.onlineDriverRate}%)`)
+                .moveDown(1);
+
+            // Financial Overview
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Financial Overview')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Revenue: ₺${analytics.core.totalRevenue.toLocaleString()}`)
+                .text(`• Driver Earnings: ₺${analytics.core.totalDriverEarnings.toLocaleString()}`)
+                .text(`• Platform Fees: ₺${analytics.core.platformFees.toLocaleString()}`)
+                .text(`• Average Order Value: ₺${analytics.financial.averageOrderValue.toFixed(2)}`)
+                .text(`• Average Driver Earnings: ₺${analytics.financial.averageDriverEarning.toFixed(2)}`)
+                .moveDown(1);
+
+            // Driver Performance
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Driver Performance')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Drivers: ${analytics.drivers.stats.totalDrivers}`)
+                .text(`• Active Drivers: ${analytics.drivers.stats.activeDrivers}`)
+                .text(`• Online Drivers: ${analytics.drivers.stats.onlineDrivers}`)
+                .text(`• Verified Drivers: ${analytics.drivers.stats.verifiedDrivers}`)
+                .text(`• Suspended Drivers: ${analytics.drivers.stats.suspendedDrivers}`)
+                .text(`• Average Deliveries per Driver: ${analytics.drivers.stats.avgDeliveriesPerDriver.toFixed(1)}`)
+                .text(`• Average Earnings per Driver: ₺${analytics.drivers.stats.avgEarningsPerDriver.toFixed(2)}`)
+                .moveDown(1);
+
+            // Delivery Performance
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Delivery Performance')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Deliveries: ${analytics.deliveries.totalDeliveries}`)
+                .text(`• Completed Deliveries: ${analytics.deliveries.completedDeliveries}`)
+                .text(`• Pending Deliveries: ${analytics.core.pendingDeliveries}`)
+                .text(`• Completion Rate: ${analytics.core.completionRate}%`)
+                .text(`• Average Delivery Time: ${analytics.performance.avgDeliveryTime} minutes`)
+                .text(`• Average Rating: ${analytics.performance.avgRating} stars`)
+                .moveDown(1);
+
+            // Document Verification Status
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Document Verification Status')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Drivers: ${analytics.documents.stats.totalDrivers}`)
+                .text(`• Verified Drivers: ${analytics.documents.stats.verifiedDrivers}`)
+                .text(`• Pending Drivers: ${analytics.documents.stats.pendingDrivers}`)
+                .text(`• Total Pending Documents: ${analytics.documents.stats.totalPendingDocuments}`)
+                .text(`• Total Verified Documents: ${analytics.documents.stats.totalVerifiedDocuments}`)
+                .text(`• Total Rejected Documents: ${analytics.documents.stats.totalRejectedDocuments}`)
+                .text(`• Verification Rate: ${analytics.documents.verificationRate}%`)
+                .moveDown(1);
+
+            // Remittance Status
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Remittance Status')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Total Remittances: ${analytics.remittances.totalRemittances}`)
+                .text(`• Pending Remittances: ${analytics.remittances.pendingRemittances}`)
+                .text(`• Completed Remittances: ${analytics.remittances.completedRemittances}`)
+                .text(`• Total Amount: ₺${analytics.remittances.totalAmount.toLocaleString()}`)
+                .moveDown(1);
+
+            // Growth Metrics
+            doc.fontSize(16)
+                .font('Helvetica-Bold')
+                .text('Growth Metrics')
+                .moveDown(0.5);
+
+            doc.fontSize(10)
+                .font('Helvetica')
+                .text(`• Driver Growth: ${analytics.growth.driverGrowth}%`)
+                .text(`• Delivery Growth: ${analytics.growth.deliveryGrowth}%`)
+                .text(`• Revenue Growth: ${analytics.growth.revenueGrowth}%`)
+                .moveDown(1);
+
+            // Top Performers Table
+            if (analytics.drivers.topPerformers && analytics.drivers.topPerformers.length > 0) {
+                doc.fontSize(16)
+                    .font('Helvetica-Bold')
+                    .text('Top Performing Drivers')
+                    .moveDown(0.5);
+
+                // Table headers
+                const tableTop = doc.y;
+                const tableLeft = 50;
+                const colWidth = 120;
+                const rowHeight = 20;
+
+                // Headers
+                doc.fontSize(10)
+                    .font('Helvetica-Bold')
+                    .text('Driver', tableLeft, tableTop)
+                    .text('Deliveries', tableLeft + colWidth, tableTop)
+                    .text('Earnings', tableLeft + colWidth * 2, tableTop)
+                    .text('Rating', tableLeft + colWidth * 3, tableTop);
+
+                // Data rows
+                doc.fontSize(9)
+                    .font('Helvetica');
+
+                analytics.drivers.topPerformers.slice(0, 10).forEach((driver, index) => {
+                    const y = tableTop + rowHeight * (index + 1);
+                    doc.text(driver.name || 'Unknown', tableLeft, y)
+                        .text(driver.deliveries.toString(), tableLeft + colWidth, y)
+                        .text(`₺${driver.earnings}`, tableLeft + colWidth * 2, y)
+                        .text(driver.avgRating ? `${driver.avgRating}⭐` : 'N/A', tableLeft + colWidth * 3, y);
+                });
+
+                doc.moveDown(2);
+            }
+
+            // Area Performance
+            if (analytics.deliveries.areaPerformance && analytics.deliveries.areaPerformance.length > 0) {
+                doc.fontSize(16)
+                    .font('Helvetica-Bold')
+                    .text('Top Performing Areas')
+                    .moveDown(0.5);
+
+                analytics.deliveries.areaPerformance.slice(0, 5).forEach((area, index) => {
+                    doc.fontSize(10)
+                        .font('Helvetica')
+                        .text(`${index + 1}. ${area.area}: ${area.deliveries} deliveries, ₺${area.revenue} revenue`);
+                });
+
+                doc.moveDown(1);
+            }
+
+            // Payment Method Breakdown
+            if (analytics.financial.paymentMethodBreakdown && analytics.financial.paymentMethodBreakdown.length > 0) {
+                doc.fontSize(16)
+                    .font('Helvetica-Bold')
+                    .text('Payment Method Breakdown')
+                    .moveDown(0.5);
+
+                analytics.financial.paymentMethodBreakdown.forEach((method) => {
+                    doc.fontSize(10)
+                        .font('Helvetica')
+                        .text(`• ${method._id}: ${method.count} deliveries (₺${method.revenue})`);
+                });
+
+                doc.moveDown(1);
+            }
+
+            // Footer
+            doc.fontSize(8)
+                .font('Helvetica')
+                .text('This report was generated automatically by the Greep SDS Analytics System.', { align: 'center' })
+                .text('For questions or support, please contact the system administrator.', { align: 'center' });
+
+            // Finalize PDF
+            doc.end();
+
+        } catch (error) {
+            console.error('PDF Export Error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
     // Export data (CSV/Excel)
     static exportData = catchAsync(async (req, res) => {
         const { type, format = 'csv', period = 'month' } = req.query;
@@ -416,7 +813,6 @@ class AdminController {
                         createdAt: { $gte: startDate, $lte: endDate }
                     })
                         .populate('assignedTo', 'name email area')
-                        .populate('assignedBy', 'name email')
                         .select('-__v')
                         .lean();
                     filename = `deliveries_${period}_${new Date().toISOString().split('T')[0]}`;
@@ -535,9 +931,8 @@ class AdminController {
             }
 
             const activities = await Delivery.find(query)
-                .populate('assignedBy', 'name email')
                 .populate('assignedTo', 'name email')
-                .select('deliveryCode pickupLocation deliveryLocation status createdAt assignedBy assignedTo')
+                .select('deliveryCode pickupLocation deliveryLocation status createdAt assignedTo')
                 .sort({ createdAt: -1 })
                 .limit(limit * 1)
                 .skip((page - 1) * limit);
@@ -550,7 +945,7 @@ class AdminController {
                 action: 'create_delivery',
                 resource: `Delivery ${delivery.deliveryCode}`,
                 details: `Created delivery from ${delivery.pickupLocation} to ${delivery.deliveryLocation}`,
-                performedBy: delivery.assignedBy,
+                performedBy: delivery.assignedTo,
                 timestamp: delivery.createdAt,
                 status: delivery.status
             }));
@@ -648,14 +1043,17 @@ class AdminController {
             // Build query based on filters
             let query = {};
 
-            // Filter by document status
-            if (status !== 'all') {
-                query[`documents.${documentType || 'studentId'}.status`] = status;
+            // Filter by document status - only apply if documentType is specified
+            if (status !== 'all' && documentType) {
+                query[`documents.${documentType}.status`] = status;
             }
 
             // Filter by specific document type if provided
             if (documentType) {
                 query[`documents.${documentType}`] = { $exists: true };
+            } else {
+                // If no documentType specified, get all drivers that have any documents
+                query.documents = { $exists: true, $ne: null };
             }
 
             // Get drivers with documents
@@ -671,7 +1069,12 @@ class AdminController {
                 if (driver.documents) {
                     Object.keys(driver.documents).forEach(docType => {
                         const doc = driver.documents[docType];
-                        if (doc && doc.documentUrl) {
+                        // Include documents even if they don't have documentUrl (for pending status)
+                        if (doc && (doc.status || doc.documentUrl)) {
+                            // Determine if document has actual file uploaded
+                            const hasFile = doc.documentUrl && doc.documentUrl.includes('cloudinary.com');
+                            const uploadDate = doc.uploadDate || (hasFile ? new Date() : null);
+
                             documents.push({
                                 id: `${driver._id}_${docType}`,
                                 driverId: driver._id,
@@ -681,14 +1084,18 @@ class AdminController {
                                 studentId: driver.studentId,
                                 documentType: docType,
                                 status: doc.status || 'pending',
-                                documentUrl: doc.documentUrl,
-                                uploadDate: doc.uploadDate,
-                                verifiedAt: doc.verifiedAt,
-                                verifiedBy: doc.verifiedBy,
-                                rejectionReason: doc.rejectionReason,
-                                aiVerificationResult: doc.aiVerificationResult,
+                                documentUrl: hasFile ? doc.documentUrl : null,
+                                uploadDate: uploadDate,
+                                verifiedAt: doc.verifiedAt || null,
+                                verifiedBy: doc.verifiedBy || null,
+                                rejectionReason: doc.rejectionReason || null,
+                                aiVerificationResult: doc.aiVerificationResult || null,
                                 profilePicture: driver.profilePicture,
-                                joinedAt: driver.joinedAt
+                                joinedAt: driver.joinedAt,
+                                // Add helpful flags for frontend
+                                hasFile: hasFile,
+                                needsUpload: !hasFile && doc.status === 'pending',
+                                canVerify: hasFile && doc.status === 'pending'
                             });
                         }
                     });
@@ -716,6 +1123,13 @@ class AdminController {
                     status,
                     documentType,
                     totalDrivers
+                },
+                // Add summary information
+                summary: {
+                    totalDocuments: totalDocuments,
+                    documentsWithFiles: filteredDocuments.filter(d => d.hasFile).length,
+                    documentsNeedingUpload: filteredDocuments.filter(d => d.needsUpload).length,
+                    documentsReadyForVerification: filteredDocuments.filter(d => d.canVerify).length
                 }
             }, 'Documents retrieved successfully');
 
@@ -1285,6 +1699,521 @@ class AdminController {
 
         } catch (error) {
             console.error('Error in getEarningsHistory:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // ===== QUICK ACTIONS CONTROLLER METHODS =====
+
+    // 1. Generate Earnings Report
+    static generateEarningsReport = catchAsync(async (req, res) => {
+        const { period, driverId, format, dateRange } = req.body;
+        const { user } = req;
+
+        try {
+            // Generate unique report ID
+            const reportId = `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // Calculate date range based on period
+            let startDate, endDate;
+            if (period === 'custom' && dateRange) {
+                startDate = new Date(dateRange.start);
+                endDate = new Date(dateRange.end);
+            } else {
+                const dateRangeObj = AnalyticsService.getDateRange(period);
+                startDate = dateRangeObj.startDate;
+                endDate = dateRangeObj.endDate;
+            }
+
+            // Build query for deliveries
+            const query = {
+                createdAt: { $gte: startDate, $lte: endDate },
+                status: { $in: ['completed', 'delivered'] }
+            };
+
+            if (driverId && driverId !== 'all') {
+                query.assignedTo = driverId;
+            }
+
+            // Get delivery data
+            const deliveries = await Delivery.find(query)
+                .populate('assignedTo', 'name email area');
+
+            // Calculate earnings
+            const totalEarnings = deliveries.reduce((sum, delivery) => sum + (delivery.driverEarnings || 0), 0);
+            const totalFees = deliveries.reduce((sum, delivery) => sum + (delivery.fee || 0), 0);
+            const platformFees = totalFees - totalEarnings;
+
+            // Create report data
+            const reportData = {
+                reportId,
+                period,
+                driverId: driverId === 'all' ? 'All Drivers' : driverId,
+                format,
+                generatedBy: user.id,
+                generatedAt: new Date(),
+                dateRange: { startDate, endDate },
+                summary: {
+                    totalDeliveries: deliveries.length,
+                    totalEarnings,
+                    totalFees,
+                    platformFees,
+                    averagePerDelivery: deliveries.length > 0 ? totalEarnings / deliveries.length : 0
+                },
+                deliveries: deliveries.map(d => ({
+                    id: d._id,
+                    driverName: d.assignedTo?.name || 'Unknown',
+                    driverEmail: d.assignedTo?.email || 'Unknown',
+                    fee: d.fee || 0,
+                    driverEarnings: d.driverEarnings || 0,
+                    platformFee: (d.fee || 0) - (d.driverEarnings || 0),
+                    status: d.status,
+                    createdAt: d.createdAt
+                }))
+            };
+
+            // Store report metadata (in production, you'd save this to database)
+            // For now, we'll generate the report URL
+            const reportUrl = `${process.env.BASE_URL || 'http://localhost:3001'}/api/admin/earnings/reports/download/${reportId}`;
+            const downloadUrl = `/api/admin/earnings/reports/download/${reportId}`;
+
+            successResponse(res, {
+                reportId,
+                reportUrl,
+                downloadUrl,
+                status: 'completed',
+                message: 'Report generated successfully'
+            }, 'Report generated successfully');
+
+        } catch (error) {
+            console.error('Error in generateEarningsReport:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 2. Get Driver Summary
+    static getDriverSummary = catchAsync(async (req, res) => {
+        const { period = 'thisMonth', driverId, dateRange } = req.query;
+
+        try {
+            // Calculate date range
+            let startDate, endDate;
+            if (period === 'custom' && dateRange) {
+                startDate = new Date(dateRange.start);
+                endDate = new Date(dateRange.end);
+            } else {
+                const dateRangeObj = AnalyticsService.getDateRange(period);
+                startDate = dateRangeObj.startDate;
+                endDate = dateRangeObj.endDate;
+            }
+
+            // Build query
+            const query = {
+                createdAt: { $gte: startDate, $lte: endDate },
+                status: { $in: ['completed', 'delivered'] }
+            };
+
+            if (driverId) {
+                query.assignedTo = driverId;
+            }
+
+            // Get delivery data
+            const deliveries = await Delivery.find(query)
+                .populate('assignedTo', 'name email area isActive');
+
+            // Calculate driver breakdown
+            const driverMap = new Map();
+
+            deliveries.forEach(delivery => {
+                const driverId = delivery.assignedTo?._id.toString();
+                if (!driverId) return;
+
+                if (!driverMap.has(driverId)) {
+                    driverMap.set(driverId, {
+                        driverId,
+                        name: delivery.assignedTo?.name || 'Unknown',
+                        email: delivery.assignedTo?.email || 'Unknown',
+                        area: delivery.assignedTo?.area || 'Unknown',
+                        earnings: 0,
+                        deliveries: 0,
+                        averagePerDelivery: 0,
+                        status: delivery.assignedTo?.isActive ? 'active' : 'inactive'
+                    });
+                }
+
+                const driver = driverMap.get(driverId);
+                driver.earnings += delivery.driverEarnings || 0;
+                driver.deliveries += 1;
+            });
+
+            // Calculate averages and totals
+            const driverBreakdown = Array.from(driverMap.values()).map(driver => ({
+                ...driver,
+                averagePerDelivery: driver.deliveries > 0 ? driver.earnings / driver.deliveries : 0
+            }));
+
+            const totalDrivers = driverBreakdown.length;
+            const activeDrivers = driverBreakdown.filter(d => d.status === 'active').length;
+            const totalEarnings = driverBreakdown.reduce((sum, d) => sum + d.earnings, 0);
+            const averageEarnings = totalDrivers > 0 ? totalEarnings / totalDrivers : 0;
+
+            successResponse(res, {
+                totalDrivers,
+                activeDrivers,
+                totalEarnings,
+                averageEarnings,
+                driverBreakdown,
+                period,
+                dateRange: { startDate, endDate }
+            }, 'Driver summary retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getDriverSummary:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 3. Get Platform Analytics
+    static getPlatformAnalytics = catchAsync(async (req, res) => {
+        const { period = 'thisMonth', groupBy = 'daily', dateRange } = req.query;
+
+        try {
+            // Calculate date range
+            let startDate, endDate;
+            if (period === 'custom' && dateRange) {
+                startDate = new Date(dateRange.start);
+                endDate = new Date(dateRange.end);
+            } else {
+                const dateRangeObj = AnalyticsService.getDateRange(period);
+                startDate = dateRangeObj.startDate;
+                endDate = dateRangeObj.endDate;
+            }
+
+            // Get delivery data
+            const deliveries = await Delivery.find({
+                createdAt: { $gte: startDate, $lte: endDate },
+                status: { $in: ['completed', 'delivered'] }
+            });
+
+            // Calculate totals
+            const totalRevenue = deliveries.reduce((sum, d) => sum + (d.fee || 0), 0);
+            const driverPayouts = deliveries.reduce((sum, d) => sum + (d.driverEarnings || 0), 0);
+            const platformFees = totalRevenue - driverPayouts;
+            const profitMargin = totalRevenue > 0 ? (platformFees / totalRevenue) * 100 : 0;
+
+            // Generate chart data based on groupBy
+            const chartData = [];
+            const currentDate = new Date(startDate);
+
+            while (currentDate <= endDate) {
+                const dayStart = new Date(currentDate);
+                const dayEnd = new Date(currentDate);
+
+                if (groupBy === 'daily') {
+                    dayEnd.setDate(dayEnd.getDate() + 1);
+                } else if (groupBy === 'weekly') {
+                    dayEnd.setDate(dayEnd.getDate() + 7);
+                } else if (groupBy === 'monthly') {
+                    dayEnd.setMonth(dayEnd.getMonth() + 1);
+                }
+
+                const dayDeliveries = deliveries.filter(d =>
+                    d.createdAt >= dayStart && d.createdAt < dayEnd
+                );
+
+                const dayRevenue = dayDeliveries.reduce((sum, d) => sum + (d.fee || 0), 0);
+                const dayPayouts = dayDeliveries.reduce((sum, d) => sum + (d.driverEarnings || 0), 0);
+                const dayFees = dayRevenue - dayPayouts;
+
+                chartData.push({
+                    date: dayStart.toISOString().split('T')[0],
+                    revenue: dayRevenue,
+                    fees: dayFees,
+                    payouts: dayPayouts,
+                    deliveries: dayDeliveries.length
+                });
+
+                if (groupBy === 'daily') {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                } else if (groupBy === 'weekly') {
+                    currentDate.setDate(currentDate.getDate() + 7);
+                } else if (groupBy === 'monthly') {
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                }
+            }
+
+            // Calculate trends (simple comparison with previous period)
+            const previousStartDate = new Date(startDate);
+            const previousEndDate = new Date(endDate);
+            const periodLength = endDate.getTime() - startDate.getTime();
+
+            previousStartDate.setTime(previousStartDate.getTime() - periodLength);
+            previousEndDate.setTime(previousEndDate.getTime() - periodLength);
+
+            const previousDeliveries = await Delivery.find({
+                createdAt: { $gte: previousStartDate, $lte: previousEndDate },
+                status: { $in: ['completed', 'delivered'] }
+            });
+
+            const previousRevenue = previousDeliveries.reduce((sum, d) => sum + (d.fee || 0), 0);
+            const previousFees = previousDeliveries.reduce((sum, d) => sum + ((d.fee || 0) - (d.driverEarnings || 0)), 0);
+            const previousDeliveriesCount = previousDeliveries.length;
+
+            const revenueGrowth = previousRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 : 0;
+            const feeGrowth = previousFees > 0 ? ((platformFees - previousFees) / previousFees) * 100 : 0;
+            const deliveryGrowth = previousDeliveriesCount > 0 ? ((deliveries.length - previousDeliveriesCount) / previousDeliveriesCount) * 100 : 0;
+
+            successResponse(res, {
+                totalRevenue,
+                platformFees,
+                driverPayouts,
+                profitMargin,
+                trends: {
+                    revenueGrowth,
+                    feeGrowth,
+                    deliveryGrowth
+                },
+                chartData,
+                period,
+                groupBy,
+                dateRange: { startDate, endDate }
+            }, 'Platform analytics retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getPlatformAnalytics:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 4. Get Period Comparison
+    static getPeriodComparison = catchAsync(async (req, res) => {
+        const { currentPeriod, previousPeriod, currentDateRange, previousDateRange } = req.query;
+
+        try {
+            // Calculate current period date range
+            let currentStart, currentEnd;
+            if (currentPeriod === 'custom' && currentDateRange) {
+                currentStart = new Date(currentDateRange.start);
+                currentEnd = new Date(currentDateRange.end);
+            } else {
+                const currentRange = AnalyticsService.getDateRange(currentPeriod);
+                currentStart = currentRange.startDate;
+                currentEnd = currentRange.endDate;
+            }
+
+            // Calculate previous period date range
+            let previousStart, previousEnd;
+            if (previousPeriod === 'custom' && previousDateRange) {
+                previousStart = new Date(previousDateRange.start);
+                previousEnd = new Date(previousDateRange.end);
+            } else {
+                const previousRange = AnalyticsService.getDateRange(previousPeriod);
+                previousStart = previousRange.startDate;
+                previousEnd = previousRange.endDate;
+            }
+
+            // Get current period data
+            const currentDeliveries = await Delivery.find({
+                createdAt: { $gte: currentStart, $lte: currentEnd },
+                status: { $in: ['completed', 'delivered'] }
+            });
+
+            const currentEarnings = currentDeliveries.reduce((sum, d) => sum + (d.driverEarnings || 0), 0);
+            const currentDeliveriesCount = currentDeliveries.length;
+            const currentAverage = currentDeliveriesCount > 0 ? currentEarnings / currentDeliveriesCount : 0;
+
+            // Get previous period data
+            const previousDeliveries = await Delivery.find({
+                createdAt: { $gte: previousStart, $lte: previousEnd },
+                status: { $in: ['completed', 'delivered'] }
+            });
+
+            const previousEarnings = previousDeliveries.reduce((sum, d) => sum + (d.driverEarnings || 0), 0);
+            const previousDeliveriesCount = previousDeliveries.length;
+            const previousAverage = previousDeliveriesCount > 0 ? previousEarnings / previousDeliveriesCount : 0;
+
+            // Calculate changes
+            const earningsChange = previousEarnings > 0 ? ((currentEarnings - previousEarnings) / previousEarnings) * 100 : 0;
+            const deliveriesChange = previousDeliveriesCount > 0 ? ((currentDeliveriesCount - previousDeliveriesCount) / previousDeliveriesCount) * 100 : 0;
+            const averageChange = previousAverage > 0 ? ((currentAverage - previousAverage) / previousAverage) * 100 : 0;
+
+            successResponse(res, {
+                currentPeriod: {
+                    period: currentPeriod,
+                    totalEarnings: currentEarnings,
+                    deliveries: currentDeliveriesCount,
+                    averagePerDelivery: currentAverage,
+                    dateRange: { start: currentStart, end: currentEnd }
+                },
+                previousPeriod: {
+                    period: previousPeriod,
+                    totalEarnings: previousEarnings,
+                    deliveries: previousDeliveriesCount,
+                    averagePerDelivery: previousAverage,
+                    dateRange: { start: previousStart, end: previousEnd }
+                },
+                changes: {
+                    earningsChange,
+                    deliveriesChange,
+                    averageChange
+                }
+            }, 'Period comparison retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getPeriodComparison:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 5. Get Top Performers
+    static getTopPerformers = catchAsync(async (req, res) => {
+        const { period = 'thisMonth', limit = 10, sortBy = 'earnings', dateRange } = req.query;
+
+        try {
+            // Calculate date range
+            let startDate, endDate;
+            if (period === 'custom' && dateRange) {
+                startDate = new Date(dateRange.start);
+                endDate = new Date(dateRange.end);
+            } else {
+                const dateRangeObj = AnalyticsService.getDateRange(period);
+                startDate = dateRangeObj.startDate;
+                endDate = dateRangeObj.endDate;
+            }
+
+            // Get delivery data
+            const deliveries = await Delivery.find({
+                createdAt: { $gte: startDate, $lte: endDate },
+                status: { $in: ['completed', 'delivered'] }
+            }).populate('assignedTo', 'name email area');
+
+            // Group by driver
+            const driverMap = new Map();
+
+            deliveries.forEach(delivery => {
+                const driverId = delivery.assignedTo?._id.toString();
+                if (!driverId) return;
+
+                if (!driverMap.has(driverId)) {
+                    driverMap.set(driverId, {
+                        driverId,
+                        name: delivery.assignedTo?.name || 'Unknown',
+                        email: delivery.assignedTo?.email || 'Unknown',
+                        area: delivery.assignedTo?.area || 'Unknown',
+                        earnings: 0,
+                        deliveries: 0,
+                        averagePerDelivery: 0
+                    });
+                }
+
+                const driver = driverMap.get(driverId);
+                driver.earnings += delivery.driverEarnings || 0;
+                driver.deliveries += 1;
+            });
+
+            // Calculate averages
+            const driverData = Array.from(driverMap.values()).map(driver => ({
+                ...driver,
+                averagePerDelivery: driver.deliveries > 0 ? driver.earnings / driver.deliveries : 0
+            }));
+
+            // Sort by specified criteria
+            let sortedDrivers;
+            switch (sortBy) {
+                case 'earnings':
+                    sortedDrivers = driverData.sort((a, b) => b.earnings - a.earnings);
+                    break;
+                case 'deliveries':
+                    sortedDrivers = driverData.sort((a, b) => b.deliveries - a.deliveries);
+                    break;
+                case 'average':
+                    sortedDrivers = driverData.sort((a, b) => b.averagePerDelivery - a.averagePerDelivery);
+                    break;
+                default:
+                    sortedDrivers = driverData.sort((a, b) => b.earnings - a.earnings);
+            }
+
+            // Add ranking and performance indicators
+            const topPerformers = sortedDrivers.slice(0, parseInt(limit)).map((driver, index) => {
+                let performance = 'good';
+                if (index < 3) performance = 'excellent';
+                else if (index < 7) performance = 'very good';
+
+                return {
+                    ...driver,
+                    rank: index + 1,
+                    performance
+                };
+            });
+
+            successResponse(res, {
+                topPerformers,
+                period,
+                sortBy,
+                limit: parseInt(limit),
+                dateRange: { startDate, endDate }
+            }, 'Top performers retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getTopPerformers:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 6. Download Generated Report
+    static downloadEarningsReport = catchAsync(async (req, res) => {
+        const { reportId } = req.params;
+
+        try {
+            // In a real implementation, you'd retrieve the report from storage
+            // For now, we'll generate a simple CSV response
+
+            // Get sample data (in production, you'd get this from the stored report)
+            const deliveries = await Delivery.find({
+                status: { $in: ['completed', 'delivered'] }
+            })
+                .populate('assignedTo', 'name email')
+                .limit(100);
+
+            // Generate CSV content
+            const csvHeaders = 'Driver Name,Driver Email,Fee,Driver Earnings,Platform Fee,Status,Date\n';
+            const csvRows = deliveries.map(d =>
+                `"${d.assignedTo?.name || 'Unknown'}","${d.assignedTo?.email || 'Unknown'}",${d.fee || 0},${d.driverEarnings || 0},${(d.fee || 0) - (d.driverEarnings || 0)},${d.status},"${d.createdAt.toISOString()}"`
+            ).join('\n');
+
+            const csvContent = csvHeaders + csvRows;
+
+            // Set response headers for file download
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="earnings-report-${reportId}.csv"`);
+            res.setHeader('Content-Length', Buffer.byteLength(csvContent));
+
+            res.send(csvContent);
+
+        } catch (error) {
+            console.error('Error in downloadEarningsReport:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // 7. Get Report Status
+    static getReportStatus = catchAsync(async (req, res) => {
+        const { reportId } = req.params;
+
+        try {
+            // In a real implementation, you'd check the actual report status from storage
+            // For now, we'll return a mock status
+
+            successResponse(res, {
+                reportId,
+                status: 'completed',
+                generatedAt: new Date().toISOString(),
+                downloadUrl: `/api/admin/earnings/reports/download/${reportId}`,
+                message: 'Report is ready for download'
+            }, 'Report status retrieved successfully');
+
+        } catch (error) {
+            console.error('Error in getReportStatus:', error);
             errorResponse(res, error, 500);
         }
     });
