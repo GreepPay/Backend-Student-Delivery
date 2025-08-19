@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const NotificationController = require('../controllers/notificationController');
 const NotificationService = require('../services/notificationService');
+const SocketService = require('../services/socketService');
 const { authenticateToken, adminOnly, driverOnly } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
 
@@ -119,21 +120,37 @@ router.post('/admin/send-message', authenticateToken, adminOnly, validate(schema
 
 // Send message from driver to admin
 router.post('/driver/send-message', authenticateToken, driverOnly, validate(schemas.sendMessage), async (req, res) => {
+
     try {
         const { adminId, message } = req.body;
         const driverId = req.user.id;
 
-        await NotificationService.sendDriverMessage(adminId, message, driverId);
+        // If no specific adminId is provided, send to all admins
+        if (!adminId) {
+            await NotificationService.sendDriverMessageToAllAdmins(message, driverId);
 
-        res.json({
-            success: true,
-            message: 'Message sent successfully',
-            data: {
-                adminId,
-                message,
-                timestamp: new Date().toISOString()
-            }
-        });
+            res.json({
+                success: true,
+                message: 'Message sent to all admins successfully',
+                data: {
+                    message,
+                    timestamp: new Date().toISOString()
+                }
+            });
+        } else {
+            // Send to specific admin
+            await NotificationService.sendDriverMessage(adminId, message, driverId);
+
+            res.json({
+                success: true,
+                message: 'Message sent successfully',
+                data: {
+                    adminId,
+                    message,
+                    timestamp: new Date().toISOString()
+                }
+            });
+        }
     } catch (error) {
         console.error('Error sending driver message:', error);
         res.status(500).json({
@@ -142,7 +159,6 @@ router.post('/driver/send-message', authenticateToken, driverOnly, validate(sche
         });
     }
 });
-
 // Send emergency alert from driver
 router.post('/emergency-alert', authenticateToken, driverOnly, validate(schemas.emergencyAlert), async (req, res) => {
     try {
@@ -150,6 +166,9 @@ router.post('/emergency-alert', authenticateToken, driverOnly, validate(schemas.
         const driverId = req.user.id;
 
         await NotificationService.sendEmergencyAlert(driverId, message, location);
+
+        // Also emit as toast notification to admin
+        SocketService.emitEmergencyAlertToast(driverId, message, location);
 
         res.json({
             success: true,

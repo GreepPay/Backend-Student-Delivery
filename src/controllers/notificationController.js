@@ -72,15 +72,26 @@ class NotificationController {
         const { user } = req;
 
         try {
-            // Only admins can delete notifications
-            if (user.userType !== 'admin') {
-                return res.status(403).json({
+            // Check if notification exists and belongs to the user
+            const notification = await Notification.findById(notificationId);
+            
+            if (!notification) {
+                return res.status(404).json({
                     success: false,
-                    error: 'Admin access required'
+                    error: 'Notification not found'
                 });
             }
-
-            const notification = await Notification.findByIdAndDelete(notificationId);
+            
+            // Allow users to delete their own notifications or admins to delete any
+            if (notification.recipient.toString() !== user.id && user.userType !== 'admin') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You can only delete your own notifications'
+                });
+            }
+            
+            // Delete the notification
+            await Notification.findByIdAndDelete(notificationId);
 
             if (!notification) {
                 return res.status(404).json({

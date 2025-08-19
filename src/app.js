@@ -1,27 +1,50 @@
 const express = require('express');
-const cors = require('cors');//cors middleware
-const helmet = require('helmet');//security middleware
-const morgan = require('morgan');//logging middleware
-const rateLimit = require('express-rate-limit');//rate limiting middleware 
+const mongoose = require('mongoose');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
+const path = require('path');
+require('dotenv').config();
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
 const driverRoutes = require('./routes/driver');
+const adminRoutes = require('./routes/admin');
 const deliveryRoutes = require('./routes/delivery');
 const notificationRoutes = require('./routes/notifications');
-const earningsConfigRoutes = require('./routes/earningsConfig');
-const driverRatingRoutes = require('./routes/driverRating');
-const systemSettingsRoutes = require('./routes/systemSettings');
-const remittanceRoutes = require('./routes/remittance');
-const publicRoutes = require('./routes/public');
-const aiVerificationRoutes = require('./routes/aiVerification');
 const socketRoutes = require('./routes/socket');
+const backgroundJobRoutes = require('./routes/backgroundJobs');
+const systemSettingsRoutes = require('./routes/systemSettings');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
+
+// Rate limiting for broadcast endpoint
+const broadcastLimiter = rateLimit({
+    windowMs: 5 * 1000, // 5 seconds
+    max: 3, // limit each IP to 3 requests per windowMs
+    message: {
+        success: false,
+        error: 'Too many broadcast requests, please wait 5 seconds'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// General rate limiting
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: {
+        success: false,
+        error: 'Too many requests from this IP, please try again later'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Security middleware
 app.use(helmet());
@@ -78,13 +101,9 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/earnings-config', earningsConfigRoutes);
-app.use('/api/driver-rating', driverRatingRoutes);
-app.use('/api/system-settings', systemSettingsRoutes);
-app.use('/api/remittance', remittanceRoutes);
-app.use('/api/public', publicRoutes);
-app.use('/api/ai', aiVerificationRoutes);
 app.use('/api/socket', socketRoutes);
+app.use('/api/background-jobs', backgroundJobRoutes);
+app.use('/api/system-settings', systemSettingsRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

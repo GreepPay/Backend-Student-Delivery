@@ -5,7 +5,7 @@ const EarningsService = require('../services/earningsService');
 const { catchAsync, successResponse, errorResponse } = require('../middleware/errorHandler');
 
 class DeliveryController {
-    // Create new delivery with automatic broadcast
+    // Create new delivery with automatic broadcast or manual assignment
     static createDelivery = catchAsync(async (req, res) => {
         const {
             pickupLocation,
@@ -20,8 +20,10 @@ class DeliveryController {
             distance,
             pickupCoordinates,
             deliveryCoordinates,
+            useAutoBroadcast = true,
             broadcastRadius,
-            broadcastDuration
+            broadcastDuration,
+            assignedTo
         } = req.body;
 
         const { user } = req;
@@ -36,7 +38,7 @@ class DeliveryController {
             const deliveryCode = `GRP-${timestamp}${random}`;
 
             // Create delivery
-            const delivery = new Delivery({
+            const deliveryData = {
                 pickupLocation,
                 deliveryLocation,
                 customerName,
@@ -49,33 +51,77 @@ class DeliveryController {
                 distance,
                 pickupCoordinates,
                 deliveryCoordinates,
-                broadcastRadius: broadcastRadius || 5, // Default 5km radius
-                broadcastDuration: broadcastDuration || 60, // Default 60 seconds
                 deliveryCode,
                 createdBy: user.id
-            });
+            };
 
+            // Handle broadcast fields based on useAutoBroadcast
+            if (useAutoBroadcast) {
+                deliveryData.broadcastRadius = broadcastRadius || 5;
+                deliveryData.broadcastDuration = broadcastDuration || 60;
+                deliveryData.broadcastStatus = 'not_started';
+            } else {
+                // Manual assignment
+                deliveryData.assignedTo = assignedTo;
+                deliveryData.status = 'accepted'; // Changed from 'assigned' to 'accepted'
+                deliveryData.broadcastStatus = 'manual_assignment';
+            }
+
+            const delivery = new Delivery(deliveryData);
             await delivery.save();
 
-            // Start automatic broadcast
-            const broadcastResult = await BroadcastService.startBroadcast(delivery._id);
+            let result;
+            let updatedDelivery = delivery;
+
+            if (useAutoBroadcast) {
+                // Start automatic broadcast
+                result = await BroadcastService.startBroadcast(delivery._id);
+                // Get the updated delivery after broadcast starts
+                updatedDelivery = await Delivery.findById(delivery._id);
+            } else {
+                // Manual assignment - notify the assigned driver
+                if (assignedTo) {
+                    const driver = await Driver.findById(assignedTo);
+                    if (driver) {
+                        // Send notification to assigned driver
+                        const NotificationService = require('../services/notificationService');
+                        await NotificationService.createAndEmitNotification({
+                            recipient: assignedTo,
+                            recipientModel: 'Driver',
+                            type: 'delivery_assigned',
+                            title: 'New Delivery Assigned',
+                            message: `You have been assigned a new delivery: ${delivery.pickupLocation} to ${delivery.deliveryLocation}`,
+                            data: {
+                                deliveryId: delivery._id,
+                                deliveryCode: delivery.deliveryCode,
+                                pickupLocation: delivery.pickupLocation,
+                                deliveryLocation: delivery.deliveryLocation,
+                                fee: delivery.fee
+                            },
+                            priority: 'high'
+                        });
+                    }
+                }
+                result = { eligibleDrivers: [] };
+            }
 
             successResponse(res, {
                 delivery: {
-                    id: delivery._id,
-                    pickupLocation: delivery.pickupLocation,
-                    deliveryLocation: delivery.deliveryLocation,
-                    fee: delivery.fee,
-                    status: delivery.status,
-                    broadcastStatus: delivery.broadcastStatus,
-                    broadcastEndTime: delivery.broadcastEndTime,
-                    eligibleDrivers: broadcastResult.eligibleDrivers
+                    id: updatedDelivery._id,
+                    pickupLocation: updatedDelivery.pickupLocation,
+                    deliveryLocation: updatedDelivery.deliveryLocation,
+                    fee: updatedDelivery.fee,
+                    status: updatedDelivery.status,
+                    broadcastStatus: updatedDelivery.broadcastStatus,
+                    broadcastEndTime: updatedDelivery.broadcastEndTime,
+                    assignedTo: updatedDelivery.assignedTo,
+                    eligibleDrivers: result.eligibleDrivers
                 },
                 earnings: {
                     driverEarning: earnings.driverEarning,
                     companyEarning: earnings.companyEarning
                 }
-            }, 'Delivery created and broadcast started successfully');
+            }, useAutoBroadcast ? 'Delivery created and broadcast started successfully' : 'Delivery created and assigned successfully');
         } catch (error) {
             errorResponse(res, error, 500);
         }

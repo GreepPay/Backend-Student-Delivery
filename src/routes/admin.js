@@ -281,6 +281,13 @@ router.get('/drivers/:driverId/status',
     DriverController.getAccountStatus
 );
 
+router.put('/drivers/:driverId/status',
+    requirePermission('manage_drivers'),
+    validateParams(paramSchemas.driverId),
+    validate(schemas.updateDriverStatus),
+    DriverController.updateDriverStatus
+);
+
 router.put('/drivers/:driverId/documents/:documentType',
     requirePermission('manage_drivers'),
     validateParams(Joi.object({

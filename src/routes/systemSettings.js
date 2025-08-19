@@ -5,7 +5,10 @@ const { validate, schemas } = require('../middleware/validation');
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
+// Public routes (no authentication required)
+router.get('/public', SystemSettingsController.getPublicSettings);
+
+// Apply authentication middleware to protected routes
 router.use(authenticateToken);
 
 // Admin-only routes
@@ -17,8 +20,5 @@ router.post('/admin/reset', adminOnly, SystemSettingsController.resetToDefaults)
 
 // Driver routes (limited access)
 router.get('/driver', SystemSettingsController.getDriverSettings);
-
-// Public routes (very limited access)
-router.get('/public', SystemSettingsController.getPublicSettings);
 
 module.exports = router; 

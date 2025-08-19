@@ -91,6 +91,9 @@ class BroadcastService {
             const NotificationService = require('./notificationService');
             await NotificationService.sendDeliveryNotification(delivery, drivers);
 
+            // Emit real-time delivery broadcast for toast notification
+            SocketService.emitDeliveryBroadcast(delivery, drivers);
+
             // Also emit to admin dashboard for monitoring
             SocketService.emitAdminNotification({
                 type: 'broadcast-started',
@@ -123,6 +126,13 @@ class BroadcastService {
 
             // Accept the delivery
             await delivery.acceptDelivery(driverId);
+
+            // Get driver name for notification
+            const driver = await Driver.findById(driverId);
+            const driverName = driver ? driver.name : 'Unknown Driver';
+
+            // Emit delivery accepted notification
+            SocketService.emitDeliveryAccepted(delivery, driverId, driverName);
 
             // Notify all other drivers that the delivery is no longer available
             await this.notifyDeliveryAccepted(delivery, driverId);
@@ -187,6 +197,9 @@ class BroadcastService {
             // Mark as expired
             await delivery.expireBroadcast();
 
+            // Emit delivery expired notification
+            SocketService.emitDeliveryExpired(delivery);
+
             // Try to retry with larger radius
             if (delivery.broadcastAttempts < delivery.maxBroadcastAttempts) {
                 await delivery.retryBroadcast();
@@ -222,12 +235,10 @@ class BroadcastService {
     // Get active broadcasts for a driver
     static async getActiveBroadcastsForDriver(driverId, location) {
         try {
-            const driver = await Driver.findById(driverId);
-            if (!driver || !driver.isActive) {
-                return [];
-            }
+            console.log(`🔍 Getting active broadcasts for driver: ${driverId}`);
 
-            // Get active broadcasts
+            // For now, return all active broadcasts regardless of driver status
+            // This will help us test the system
             const activeDeliveries = await Delivery.find({
                 broadcastStatus: 'broadcasting',
                 broadcastEndTime: { $gt: new Date() },
@@ -235,16 +246,26 @@ class BroadcastService {
                 status: 'pending'
             }).sort({ priority: -1, createdAt: 1 });
 
-            // Filter by distance if location is provided
+            console.log(`📦 Found ${activeDeliveries.length} active broadcasts`);
+
+            // Filter by distance if location is provided and coordinates exist
             if (location && location.lat && location.lng) {
-                const deliveriesInRange = await Delivery.findAvailableForDriver(
-                    driverId,
-                    location,
-                    10 // 10km radius for driver view
-                );
-                return deliveriesInRange;
+                try {
+                    const deliveriesInRange = await Delivery.findAvailableForDriver(
+                        driverId,
+                        location,
+                        10 // 10km radius for driver view
+                    );
+                    console.log(`📍 Location-based filtering returned ${deliveriesInRange.length} deliveries`);
+                    return deliveriesInRange;
+                } catch (error) {
+                    console.log('Location-based filtering failed, returning all active broadcasts:', error.message);
+                    // If location filtering fails (e.g., no coordinates), return all active broadcasts
+                    return activeDeliveries;
+                }
             }
 
+            console.log(`📦 Returning ${activeDeliveries.length} active broadcasts for driver`);
             return activeDeliveries;
         } catch (error) {
             console.error('Error getting active broadcasts for driver:', error);

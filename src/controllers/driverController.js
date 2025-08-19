@@ -702,6 +702,85 @@ class DriverController {
         }
     });
 
+    // Update driver status (PUT method for direct status updates)
+    static updateDriverStatus = catchAsync(async (req, res) => {
+        console.log('updateDriverStatus called with params:', req.params);
+        console.log('updateDriverStatus called with body:', req.body);
+
+        const { driverId } = req.params;
+        const { user } = req;
+        const { isActive, isOnline, status } = req.body;
+
+        // Only the driver themselves can update their status
+        if (user.userType === 'driver' && user.id !== driverId) {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied'
+            });
+        }
+
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            console.log('Current driver status:', { isActive: driver.isActive, isOnline: driver.isOnline });
+            console.log('Requested status update:', { isActive, isOnline, status });
+
+            // Prepare update object with only provided fields
+            const updateData = {};
+
+            // Handle status field (convert to isActive/isOnline)
+            if (status !== undefined) {
+                if (status === 'active') {
+                    updateData.isActive = true;
+                    updateData.isOnline = true;
+                } else if (status === 'offline') {
+                    updateData.isActive = true;
+                    updateData.isOnline = false;
+                } else if (status === 'inactive') {
+                    updateData.isActive = false;
+                    updateData.isOnline = false;
+                }
+            }
+
+            // Handle individual boolean fields
+            if (isActive !== undefined) updateData.isActive = isActive;
+            if (isOnline !== undefined) updateData.isOnline = isOnline;
+
+            updateData.lastLogin = new Date();
+
+            const updatedDriver = await Driver.findByIdAndUpdate(
+                driverId,
+                updateData,
+                { new: true }
+            ).select('name email isActive isOnline lastLogin area totalDeliveries completedDeliveries totalEarnings rating');
+
+            console.log('Driver status updated in database:', updatedDriver);
+
+            // Create admin notification for driver status change
+            try {
+                const status = updatedDriver.isActive ? 'active' : 'inactive';
+                await AdminNotificationService.createDriverStatusNotification(driverId, status);
+            } catch (notificationError) {
+                console.error('Failed to create driver status notification:', notificationError.message);
+            }
+
+            // Emit real-time update to admin panel
+            console.log('Emitting socket event for driver status update...');
+            socketService.emitDriverStatusUpdate(updatedDriver);
+
+            successResponse(res, updatedDriver, `Driver status updated successfully`);
+        } catch (error) {
+            console.error('Error in updateDriverStatus:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
     // Deactivate driver account (self-deactivation)
     static deactivateAccount = catchAsync(async (req, res) => {
         const { user } = req;

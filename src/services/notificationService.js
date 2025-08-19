@@ -27,6 +27,21 @@ class NotificationService {
 
             console.log(`📨 Notification created and emitted: ${notificationData.type} for ${notificationData.recipientModel}`);
 
+            // Also emit as toast notification if it's a high-priority notification
+            if (notificationData.priority === 'high' || notificationData.priority === 'urgent') {
+                const toastData = {
+                    toastType: notificationData.type,
+                    toastTitle: notificationData.title,
+                    toastMessage: notificationData.message,
+                    toastDuration: notificationData.priority === 'urgent' ? 10000 : 5000,
+                    toastPriority: notificationData.priority,
+                    data: notificationData.data
+                };
+
+                const userType = notificationData.recipientModel === 'Admin' ? 'admin' : 'driver';
+                SocketService.emitToastNotification(notificationData.recipient, userType, toastData);
+            }
+
             return notification;
         } catch (error) {
             console.error('❌ Error creating and emitting notification:', error);
@@ -202,6 +217,44 @@ class NotificationService {
             console.log(`💬 Driver message sent to admin ${admin.name}`);
         } catch (error) {
             console.error('❌ Error sending driver message:', error);
+            throw error;
+        }
+    }
+
+    static async sendDriverMessageToAllAdmins(message, driverId) {
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                throw new Error('Driver not found');
+            }
+
+            // Find all active admins
+            const admins = await Admin.find({ isActive: true });
+            if (admins.length === 0) {
+                throw new Error('No active admins found');
+            }
+
+            // Send message to all admins
+            for (const admin of admins) {
+                await this.createAndEmitNotification({
+                    recipient: admin._id,
+                    recipientModel: 'Admin',
+                    type: 'driver-message',
+                    title: `Message from ${driver.name}`,
+                    message: message,
+                    data: {
+                        driverId: driverId,
+                        driverName: driver.name,
+                        driverArea: driver.area,
+                        timestamp: new Date()
+                    },
+                    priority: 'high'
+                });
+            }
+
+            console.log(`💬 Driver message sent to all ${admins.length} admins`);
+        } catch (error) {
+            console.error('❌ Error sending driver message to all admins:', error);
             throw error;
         }
     }

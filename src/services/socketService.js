@@ -336,6 +336,205 @@ class SocketService {
             connectedDrivers: this.getConnectedDriversCount()
         };
     }
+
+    // Method to emit delivery broadcast for toast notification
+    emitDeliveryBroadcast(delivery, eligibleDrivers) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for delivery broadcast');
+                return;
+            }
+
+            const broadcastData = {
+                type: 'delivery-broadcast',
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                pickupLocation: delivery.pickupLocation,
+                deliveryLocation: delivery.deliveryLocation,
+                customerName: delivery.customerName,
+                customerPhone: delivery.customerPhone,
+                fee: delivery.fee,
+                driverEarning: delivery.driverEarning,
+                companyEarning: delivery.companyEarning,
+                estimatedTime: delivery.estimatedTime,
+                priority: delivery.priority,
+                broadcastEndTime: delivery.broadcastEndTime,
+                broadcastDuration: delivery.broadcastDuration,
+                distance: delivery.distance,
+                notes: delivery.notes,
+                paymentMethod: delivery.paymentMethod,
+                pickupCoordinates: delivery.pickupCoordinates,
+                deliveryCoordinates: delivery.deliveryCoordinates,
+                createdAt: delivery.createdAt,
+                timeRemaining: Math.max(0, delivery.broadcastEndTime - new Date()),
+                sound: 'delivery-broadcast.mp3', // Specific sound for delivery broadcasts
+                // Toast-specific data
+                toastType: 'delivery-broadcast',
+                toastTitle: '🚚 New Delivery Available',
+                toastMessage: `Pickup: ${delivery.pickupLocation} → Delivery: ${delivery.deliveryLocation}`,
+                toastDuration: Math.min(60000, Math.max(0, delivery.broadcastEndTime - new Date())), // Toast duration in ms
+                toastPriority: delivery.priority === 'high' ? 'high' : 'normal',
+                toastActions: [
+                    {
+                        label: 'Accept',
+                        action: 'accept-delivery',
+                        variant: 'primary'
+                    },
+                    {
+                        label: 'View Details',
+                        action: 'view-delivery',
+                        variant: 'secondary'
+                    }
+                ]
+            };
+
+            console.log('🚚 Emitting delivery broadcast to drivers:', broadcastData);
+
+            // Emit to all eligible drivers
+            for (const driver of eligibleDrivers) {
+                const driverRoom = `driver-${driver._id}`;
+                this.io.to(driverRoom).emit('delivery-broadcast', broadcastData);
+                console.log(`📨 Emitted delivery broadcast to driver ${driver._id}`);
+            }
+
+            // Also emit to general drivers room as fallback
+            this.io.to('drivers-room').emit('delivery-broadcast', broadcastData);
+            console.log('📨 Emitted delivery broadcast to general drivers room');
+
+        } catch (error) {
+            console.error('❌ Error emitting delivery broadcast:', error);
+        }
+    }
+
+    // Method to emit toast notification for delivery accepted
+    emitDeliveryAccepted(delivery, driverId, acceptedDriverName) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for delivery accepted');
+                return;
+            }
+
+            const acceptData = {
+                type: 'delivery-accepted',
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                acceptedBy: driverId,
+                acceptedDriverName: acceptedDriverName,
+                acceptedAt: delivery.acceptedAt,
+                sound: 'delivery-accepted.mp3',
+                // Toast-specific data
+                toastType: 'delivery-accepted',
+                toastTitle: '✅ Delivery Accepted',
+                toastMessage: `Delivery ${delivery.deliveryCode} accepted by ${acceptedDriverName}`,
+                toastDuration: 5000, // 5 seconds
+                toastPriority: 'normal'
+            };
+
+            console.log('✅ Emitting delivery accepted notification');
+
+            // Notify all other drivers that delivery is no longer available
+            this.io.to('drivers-room').emit('delivery-accepted', acceptData);
+            console.log('📨 Emitted delivery accepted to all drivers');
+
+            // Notify admin
+            this.io.to('admin-room').emit('delivery-accepted', {
+                ...acceptData,
+                type: 'admin-delivery-accepted'
+            });
+            console.log('📨 Emitted delivery accepted to admin');
+
+        } catch (error) {
+            console.error('❌ Error emitting delivery accepted:', error);
+        }
+    }
+
+    // Method to emit toast notification for delivery expired
+    emitDeliveryExpired(delivery) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for delivery expired');
+                return;
+            }
+
+            const expiredData = {
+                type: 'delivery-expired',
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                expiredAt: new Date(),
+                sound: 'delivery-expired.mp3'
+            };
+
+            console.log('⏰ Emitting delivery expired notification');
+
+            // Notify all drivers that delivery has expired
+            this.io.to('drivers-room').emit('delivery-expired', expiredData);
+            console.log('📨 Emitted delivery expired to all drivers');
+
+            // Notify admin
+            this.io.to('admin-room').emit('delivery-expired', {
+                ...expiredData,
+                type: 'admin-delivery-expired'
+            });
+            console.log('📨 Emitted delivery expired to admin');
+
+        } catch (error) {
+            console.error('❌ Error emitting delivery expired:', error);
+        }
+    }
+
+    // Method to emit toast notification
+    emitToastNotification(userId, userType, toastData) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for toast notification');
+                return;
+            }
+
+            const room = userType === 'admin' ? 'admin-room' : `driver-${userId}`;
+
+            const toastNotification = {
+                type: 'toast-notification',
+                ...toastData,
+                timestamp: new Date().toISOString(),
+                sound: toastData.sound || 'notification.mp3'
+            };
+
+            this.io.to(room).emit('toast-notification', toastNotification);
+            console.log(`🍞 Emitted toast notification to ${userType} ${userId}:`, toastData.toastTitle);
+
+        } catch (error) {
+            console.error('❌ Error emitting toast notification:', error);
+        }
+    }
+
+    // Method to emit emergency alert as toast
+    emitEmergencyAlertToast(driverId, message, location = null) {
+        try {
+            if (!this.isAvailable()) {
+                console.log('⚠️ Socket service not available for emergency alert toast');
+                return;
+            }
+
+            const emergencyToast = {
+                type: 'emergency-alert',
+                toastType: 'emergency-alert',
+                toastTitle: '🚨 Emergency Alert',
+                toastMessage: message,
+                toastDuration: 10000, // 10 seconds for emergency
+                toastPriority: 'urgent',
+                sound: 'emergency-alert.mp3',
+                location: location,
+                timestamp: new Date().toISOString()
+            };
+
+            // Emit to admin room
+            this.io.to('admin-room').emit('toast-notification', emergencyToast);
+            console.log('🚨 Emitted emergency alert toast to admin');
+
+        } catch (error) {
+            console.error('❌ Error emitting emergency alert toast:', error);
+        }
+    }
 }
 
 module.exports = new SocketService(); 

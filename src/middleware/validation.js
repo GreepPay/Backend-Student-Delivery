@@ -192,7 +192,15 @@ const schemas = {
             'Yeniiskele',
             'Gazimagusa',
             'Other'
-        ).allow('')
+        ).allow(''),
+        isActive: Joi.boolean(),
+        isOnline: Joi.boolean()
+    }),
+
+    updateDriverStatus: Joi.object({
+        isActive: Joi.boolean(),
+        isOnline: Joi.boolean(),
+        status: Joi.string().valid('active', 'offline', 'inactive')
     }),
 
     updateDriverVerification: Joi.object({
@@ -206,40 +214,7 @@ const schemas = {
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow('')
     }),
 
-    // Delivery schemas
-    createDelivery: Joi.object({
-        pickupLocation: Joi.string().min(5).max(200).required().messages({
-            'string.min': 'Pickup location must be at least 5 characters',
-            'string.max': 'Pickup location cannot exceed 200 characters'
-        }),
-        deliveryLocation: Joi.string().min(5).max(200).required().messages({
-            'string.min': 'Delivery location must be at least 5 characters',
-            'string.max': 'Delivery location cannot exceed 200 characters'
-        }),
-        customerName: Joi.string().max(50).allow(''),
-        customerPhone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
-        fee: Joi.number().min(1).max(10000).default(150).messages({
-            'number.min': 'Fee must be greater than 0',
-            'number.max': 'Fee cannot exceed 10,000₺'
-        }),
-        paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer').default('cash'),
-        estimatedTime: Joi.date().min('now'),
-        notes: Joi.string().max(500).allow(''),
-        priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
-        distance: Joi.number().min(0).max(1000),
-        assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null), // MongoDB ObjectId
-        useAutoBroadcast: Joi.boolean().default(true),
-        broadcastRadius: Joi.number().min(1).max(50).default(5),
-        broadcastDuration: Joi.number().min(10).max(300).default(60),
-        pickupCoordinates: Joi.object({
-            lat: Joi.number().min(-90).max(90),
-            lng: Joi.number().min(-180).max(180)
-        }),
-        deliveryCoordinates: Joi.object({
-            lat: Joi.number().min(-90).max(90),
-            lng: Joi.number().min(-180).max(180)
-        })
-    }),
+    // Delivery schemas (removed duplicate - using the one below)
 
     updateDelivery: Joi.object({
         pickupLocation: Joi.string().min(5).max(200),
@@ -587,6 +562,7 @@ const schemas = {
         notes: Joi.string().max(500).allow(''),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
         distance: Joi.number().min(0).max(1000),
+        assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, '').optional(), // MongoDB ObjectId for manual assignment
         pickupCoordinates: Joi.object({
             lat: Joi.number().min(-90).max(90),
             lng: Joi.number().min(-180).max(180)
@@ -596,8 +572,16 @@ const schemas = {
             lng: Joi.number().min(-180).max(180)
         }).optional(),
         useAutoBroadcast: Joi.boolean().default(true),
-        broadcastRadius: Joi.number().min(1).max(50).default(5),
-        broadcastDuration: Joi.number().min(10).max(300).default(60)
+        broadcastRadius: Joi.when('useAutoBroadcast', {
+            is: true,
+            then: Joi.number().min(1).max(50).default(5).required(),
+            otherwise: Joi.optional()
+        }),
+        broadcastDuration: Joi.when('useAutoBroadcast', {
+            is: true,
+            then: Joi.number().min(10).max(300).default(60).required(),
+            otherwise: Joi.optional()
+        })
     }),
 
     updateDelivery: Joi.object({
@@ -663,9 +647,9 @@ const schemas = {
             'any.required': 'Message is required'
         })
     }).custom((value, helpers) => {
-        if (!value.driverId && !value.adminId) {
-            return helpers.error('Either driverId or adminId is required');
-        }
+        // For driver-to-admin messages, we don't need to specify adminId
+        // The system will automatically route to all admins
+        // For admin-to-driver messages, driverId is required
         if (value.driverId && value.adminId) {
             return helpers.error('Cannot provide both driverId and adminId');
         }

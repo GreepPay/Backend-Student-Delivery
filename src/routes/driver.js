@@ -100,6 +100,16 @@ router.post('/toggle-active', (req, res, next) => {
     next();
 }, DriverController.toggleActiveStatus);
 
+// Driver status update endpoint
+router.put('/status',
+    validate(schemas.updateDriverStatus),
+    (req, res, next) => {
+        req.params.driverId = req.user.id;
+        next();
+    },
+    DriverController.updateDriverStatus
+);
+
 // Driver analytics and earnings
 router.get('/analytics',
     validateQuery(schemas.analyticsQuery),
@@ -176,7 +186,11 @@ router.get('/notifications/unread-count',
 );
 
 router.put('/notifications/:notificationId/read',
-    validateParams(paramSchemas.mongoId.keys({ notificationId: paramSchemas.mongoId.extract('id') })),
+    validateParams(Joi.object({
+        notificationId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required().messages({
+            'string.pattern.base': 'Invalid notification ID format'
+        })
+    })),
     NotificationController.markAsRead
 );
 
