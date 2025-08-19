@@ -519,11 +519,13 @@ class DriverController {
             // Validate status transition
             const validTransitions = {
                 pending: ['picked_up', 'cancelled'],
-                assigned: ['picked_up', 'cancelled'],
-                picked_up: ['delivered', 'cancelled'],
-                in_progress: ['delivered', 'cancelled'],
+                broadcasting: ['picked_up', 'cancelled'],
+                accepted: ['picked_up', 'cancelled'],
+                picked_up: ['in_transit', 'delivered', 'cancelled'],
+                in_transit: ['delivered', 'cancelled'],
                 delivered: [], // Final status
-                cancelled: [] // Final status
+                cancelled: [], // Final status
+                failed: [] // Final status
             };
 
             console.log('Valid transitions for current status:', validTransitions[delivery.status]);

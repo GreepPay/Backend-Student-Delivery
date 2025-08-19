@@ -13,6 +13,16 @@ const deliverySchema = new mongoose.Schema({
         trim: true,
         minlength: [5, 'Delivery location must be at least 5 characters long']
     },
+    pickupLocationDescription: {
+        type: String,
+        maxlength: [500, 'Pickup location description cannot exceed 500 characters'],
+        trim: true
+    },
+    deliveryLocationDescription: {
+        type: String,
+        maxlength: [500, 'Delivery location description cannot exceed 500 characters'],
+        trim: true
+    },
     customerName: {
         type: String,
         maxlength: [50, 'Customer name cannot exceed 50 characters'],
@@ -33,6 +43,16 @@ const deliverySchema = new mongoose.Schema({
         required: [true, 'Delivery fee is required'],
         min: [1, 'Fee must be greater than 0'],
         max: [10000, 'Fee cannot exceed 10,000₺']
+    },
+    driverEarning: {
+        type: Number,
+        min: [0, 'Driver earning cannot be negative'],
+        default: 0
+    },
+    companyEarning: {
+        type: Number,
+        min: [0, 'Company earning cannot be negative'],
+        default: 0
     },
     paymentMethod: {
         type: String,

@@ -1,6 +1,7 @@
 const Delivery = require('../models/Delivery');
 const Driver = require('../models/Driver');
 const SocketService = require('./socketService');
+const LocationService = require('./locationService');
 const { catchAsync } = require('../middleware/errorHandler');
 
 class BroadcastService {
@@ -41,33 +42,50 @@ class BroadcastService {
     // Find eligible drivers for a delivery
     static async findEligibleDrivers(delivery) {
         try {
-            // Find active drivers who are available
+            console.log(`🔍 Finding eligible drivers for delivery ${delivery._id}`);
+
+            // Check if we have pickup coordinates
+            if (!delivery.pickupCoordinates || !delivery.pickupCoordinates.lat || !delivery.pickupCoordinates.lng) {
+                console.log('⚠️ No pickup coordinates available, using area-based search');
+                // Fallback to area-based search
+                const eligibleDrivers = await Driver.find({
+                    isActive: true,
+                    isOnline: true,
+                    isSuspended: false
+                }).limit(20);
+
+                return eligibleDrivers.map(driver => ({
+                    driver: driver,
+                    distance: 'Unknown',
+                    distanceFormatted: 'Unknown'
+                }));
+            }
+
+            // Use the new location service to find nearby drivers
+            const nearbyDrivers = await LocationService.findNearbyDrivers(
+                delivery.pickupCoordinates.lat,
+                delivery.pickupCoordinates.lng,
+                delivery.broadcastRadius || 10, // Default 10km radius
+                20 // Limit to 20 drivers
+            );
+
+            console.log(`✅ Found ${nearbyDrivers.length} eligible drivers within ${delivery.broadcastRadius || 10}km radius`);
+
+            return nearbyDrivers;
+        } catch (error) {
+            console.error('❌ Error finding eligible drivers:', error);
+            // Fallback to basic search
             const eligibleDrivers = await Driver.find({
                 isActive: true,
                 isOnline: true,
-                // Add more conditions as needed (e.g., not on another delivery)
-            });
+                isSuspended: false
+            }).limit(10);
 
-            // Filter drivers by distance if coordinates are available
-            if (delivery.pickupCoordinates && delivery.pickupCoordinates.lat && delivery.pickupCoordinates.lng) {
-                const driversInRange = await Delivery.findAvailableForDriver(
-                    null, // We don't need a specific driver ID here
-                    {
-                        lat: delivery.pickupCoordinates.lat,
-                        lng: delivery.pickupCoordinates.lng
-                    },
-                    delivery.broadcastRadius
-                );
-
-                // For now, return all active drivers since we don't have location data
-                // In a real implementation, you would filter by actual distance
-                return eligibleDrivers;
-            }
-
-            return eligibleDrivers;
-        } catch (error) {
-            console.error('Error finding eligible drivers:', error);
-            return [];
+            return eligibleDrivers.map(driver => ({
+                driver: driver,
+                distance: 'Unknown',
+                distanceFormatted: 'Unknown'
+            }));
         }
     }
 
@@ -89,7 +107,10 @@ class BroadcastService {
 
             // Send notifications to eligible drivers
             const NotificationService = require('./notificationService');
-            await NotificationService.sendDeliveryNotification(delivery, drivers);
+
+            // Extract driver objects from the new format
+            const driverObjects = drivers.map(item => item.driver || item);
+            await NotificationService.sendDeliveryNotification(delivery, driverObjects);
 
             // Emit real-time delivery broadcast for toast notification
             SocketService.emitDeliveryBroadcast(delivery, drivers);

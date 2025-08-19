@@ -7,23 +7,18 @@ class SocketService {
         this.isInitialized = false;
     }
 
-    initialize(server) {
+    initialize(io) {
         try {
-            this.io = socketIO(server, {
-                cors: {
-                    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-                    methods: ["GET", "POST"],
-                    credentials: true
-                }
-            });
+            this.io = io;
 
             this.io.on('connection', (socket) => {
-                console.log('User connected:', socket.id);
+                console.log('🔌 User connected:', socket.id);
+                console.log('📊 Total connected users:', this.connectedUsers.size);
 
                 // Handle user authentication and room joining
                 socket.on('authenticate', (data) => {
                     const { userId, userType } = data;
-                    console.log('Socket authentication received:', { userId, userType, socketId: socket.id });
+                    console.log('🔐 Socket authentication received:', { userId, userType, socketId: socket.id });
 
                     // Store user connection
                     this.connectedUsers.set(socket.id, { userId, userType });
@@ -40,6 +35,16 @@ class SocketService {
                         console.log(`🔍 Driver room: driver-${userId}`);
                         console.log(`🔍 Drivers room members: ${this.io.sockets.adapter.rooms.get('drivers-room')?.size || 0}`);
                     }
+
+                    // Send authentication confirmation
+                    socket.emit('authentication-confirmed', {
+                        userId,
+                        userType,
+                        rooms: userType === 'admin' ? ['admin-room'] : [`driver-${userId}`, 'drivers-room'],
+                        timestamp: new Date().toISOString()
+                    });
+
+                    console.log(`✅ Authentication confirmed for ${userType} ${userId}`);
                 });
 
                 // Handle driver status updates

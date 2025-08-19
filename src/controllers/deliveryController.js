@@ -2,6 +2,7 @@ const Delivery = require('../models/Delivery');
 const Driver = require('../models/Driver');
 const BroadcastService = require('../services/broadcastService');
 const EarningsService = require('../services/earningsService');
+const LocationService = require('../services/locationService');
 const { catchAsync, successResponse, errorResponse } = require('../middleware/errorHandler');
 
 class DeliveryController {
@@ -10,6 +11,8 @@ class DeliveryController {
         const {
             pickupLocation,
             deliveryLocation,
+            pickupLocationDescription,
+            deliveryLocationDescription,
             customerName,
             customerPhone,
             fee,
@@ -18,6 +21,8 @@ class DeliveryController {
             notes,
             priority,
             distance,
+            pickupLocationLink,
+            deliveryLocationLink,
             pickupCoordinates,
             deliveryCoordinates,
             useAutoBroadcast = true,
@@ -29,6 +34,38 @@ class DeliveryController {
         const { user } = req;
 
         try {
+            // Extract coordinates from Google Maps links if provided
+            let finalPickupCoordinates = pickupCoordinates;
+            let finalDeliveryCoordinates = deliveryCoordinates;
+
+            if (pickupLocationLink) {
+                try {
+                    const validation = LocationService.validateGoogleMapsLink(pickupLocationLink);
+                    if (validation.isValid) {
+                        finalPickupCoordinates = validation.coordinates;
+                        console.log(`✅ Extracted pickup coordinates: ${validation.coordinates.lat}, ${validation.coordinates.lng}`);
+                    } else {
+                        throw new Error(`Invalid pickup location link: ${validation.error}`);
+                    }
+                } catch (error) {
+                    throw new Error(`Failed to process pickup location link: ${error.message}`);
+                }
+            }
+
+            if (deliveryLocationLink) {
+                try {
+                    const validation = LocationService.validateGoogleMapsLink(deliveryLocationLink);
+                    if (validation.isValid) {
+                        finalDeliveryCoordinates = validation.coordinates;
+                        console.log(`✅ Extracted delivery coordinates: ${validation.coordinates.lat}, ${validation.coordinates.lng}`);
+                    } else {
+                        throw new Error(`Invalid delivery location link: ${validation.error}`);
+                    }
+                } catch (error) {
+                    throw new Error(`Failed to process delivery location link: ${error.message}`);
+                }
+            }
+
             // Calculate earnings
             const earnings = await EarningsService.calculateEarnings(fee);
 
@@ -41,6 +78,8 @@ class DeliveryController {
             const deliveryData = {
                 pickupLocation,
                 deliveryLocation,
+                pickupLocationDescription,
+                deliveryLocationDescription,
                 customerName,
                 customerPhone,
                 fee,
@@ -49,8 +88,8 @@ class DeliveryController {
                 notes,
                 priority,
                 distance,
-                pickupCoordinates,
-                deliveryCoordinates,
+                pickupCoordinates: finalPickupCoordinates,
+                deliveryCoordinates: finalDeliveryCoordinates,
                 deliveryCode,
                 createdBy: user.id
             };

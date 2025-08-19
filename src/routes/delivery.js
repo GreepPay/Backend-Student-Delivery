@@ -8,7 +8,7 @@ const { validate, validateQuery, validateParams, schemas } = require('../middlew
 // Rate limiting for broadcast endpoint to prevent spam
 const broadcastLimiter = rateLimit({
     windowMs: 10 * 1000, // 10 seconds
-    max: 10, // limit each IP to 10 requests per 10 seconds (increased from 2)
+    max: 30, // limit each IP to 30 requests per 10 seconds (increased for polling)
     message: {
         success: false,
         error: 'Too many broadcast requests, please wait 10 seconds'
@@ -20,6 +20,90 @@ const broadcastLimiter = rateLimit({
         return req.user ? req.user.id : req.ip;
     }
 });
+
+// ========================================
+// TEST ENDPOINTS (for both admin and driver)
+// ========================================
+
+// Test location service endpoint
+router.get('/test-location',
+    authenticateToken,
+    async (req, res) => {
+        try {
+            const { lat, lng, radius = 10 } = req.query;
+
+            if (!lat || !lng) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Latitude and longitude are required'
+                });
+            }
+
+            const LocationService = require('../services/locationService');
+            const nearbyDrivers = await LocationService.findNearbyDrivers(
+                parseFloat(lat),
+                parseFloat(lng),
+                parseFloat(radius),
+                10
+            );
+
+            res.json({
+                success: true,
+                data: {
+                    searchLocation: { lat: parseFloat(lat), lng: parseFloat(lng) },
+                    radius: parseFloat(radius),
+                    nearbyDrivers: nearbyDrivers.map(item => ({
+                        driverId: item.driver._id,
+                        name: item.driver.name,
+                        area: item.driver.area,
+                        distance: item.distanceFormatted,
+                        isOnline: item.driver.isOnline
+                    })),
+                    totalFound: nearbyDrivers.length
+                },
+                message: `Found ${nearbyDrivers.length} drivers within ${radius}km radius`
+            });
+        } catch (error) {
+            console.error('Error testing location service:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to test location service'
+            });
+        }
+    }
+);
+
+// Test Google Maps link extraction
+router.post('/test-maps-link',
+    authenticateToken,
+    async (req, res) => {
+        try {
+            const { googleMapsLink } = req.body;
+
+            if (!googleMapsLink) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Google Maps link is required'
+                });
+            }
+
+            const LocationService = require('../services/locationService');
+            const validation = LocationService.validateGoogleMapsLink(googleMapsLink);
+
+            res.json({
+                success: validation.isValid,
+                data: validation,
+                message: validation.isValid ? 'Coordinates extracted successfully' : 'Failed to extract coordinates'
+            });
+        } catch (error) {
+            console.error('Error testing Google Maps link:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to test Google Maps link'
+            });
+        }
+    }
+);
 
 // ========================================
 // ADMIN DELIVERY ROUTES
@@ -234,6 +318,7 @@ router.get('/driver/my-deliveries',
     validateQuery(schemas.driverDeliveryQuery),
     DeliveryController.getDriverDeliveries
 );
+
 
 
 

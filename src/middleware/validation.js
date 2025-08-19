@@ -232,7 +232,7 @@ const schemas = {
     }),
 
     updateDeliveryStatus: Joi.object({
-        status: Joi.string().valid('picked_up', 'delivered', 'cancelled').required(),
+        status: Joi.string().valid('picked_up', 'in_transit', 'delivered', 'cancelled', 'failed').required(),
         notes: Joi.string().max(500).allow(''),
         deliveryProof: Joi.string().uri().allow(''), // URL to proof image
         rating: Joi.number().min(1).max(5),
@@ -563,6 +563,18 @@ const schemas = {
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal'),
         distance: Joi.number().min(0).max(1000),
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).allow(null, '').optional(), // MongoDB ObjectId for manual assignment
+        pickupLocationLink: Joi.string().uri().optional().messages({
+            'string.uri': 'Pickup location must be a valid Google Maps link'
+        }),
+        deliveryLocationLink: Joi.string().uri().optional().messages({
+            'string.uri': 'Delivery location must be a valid Google Maps link'
+        }),
+        pickupLocationDescription: Joi.string().max(500).optional().messages({
+            'string.max': 'Pickup location description cannot exceed 500 characters'
+        }),
+        deliveryLocationDescription: Joi.string().max(500).optional().messages({
+            'string.max': 'Delivery location description cannot exceed 500 characters'
+        }),
         pickupCoordinates: Joi.object({
             lat: Joi.number().min(-90).max(90),
             lng: Joi.number().min(-180).max(180)
@@ -622,8 +634,11 @@ const schemas = {
     }),
 
     updateDeliveryStatus: Joi.object({
-        status: Joi.string().valid('pending', 'broadcasting', 'accepted', 'picked_up', 'in_transit', 'delivered', 'cancelled', 'failed').required(),
-        notes: Joi.string().max(500).allow('')
+        status: Joi.string().valid('picked_up', 'in_transit', 'delivered', 'cancelled', 'failed').required(),
+        notes: Joi.string().max(500).allow(''),
+        deliveryProof: Joi.string().uri().allow(''), // URL to proof image
+        rating: Joi.number().min(1).max(5),
+        feedback: Joi.string().max(1000).allow('')
     }),
 
     broadcastQuery: Joi.object({
