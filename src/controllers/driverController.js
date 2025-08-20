@@ -578,6 +578,14 @@ class DriverController {
                 } catch (paymentNotificationError) {
                     console.error('Failed to create payment notification:', paymentNotificationError.message);
                 }
+
+                // Update referral progress when delivery is completed
+                try {
+                    const ReferralService = require('../services/referralService');
+                    await ReferralService.updateReferralProgress(delivery.assignedTo.toString());
+                } catch (referralError) {
+                    console.error('Failed to update referral progress:', referralError.message);
+                }
             }
 
             successResponse(res, updatedDelivery, 'Delivery status updated successfully');

@@ -692,6 +692,17 @@ const schemas = {
         title: Joi.string().required(),
         message: Joi.string().required(),
         data: Joi.object().optional()
+    }),
+
+    // Referral schemas
+    validateReferralCode: Joi.object({
+        referralCode: Joi.string()
+            .pattern(/^GRP-SDS\d{3}-[A-Z]{2}$/)
+            .required()
+            .messages({
+                'string.pattern.base': 'Referral code must be in format GRP-SDS001-XX',
+                'any.required': 'Referral code is required'
+            })
     })
 };
 

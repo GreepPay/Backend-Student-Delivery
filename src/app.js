@@ -16,6 +16,8 @@ const notificationRoutes = require('./routes/notifications');
 const socketRoutes = require('./routes/socket');
 const backgroundJobRoutes = require('./routes/backgroundJobs');
 const systemSettingsRoutes = require('./routes/systemSettings');
+const driverRatingRoutes = require('./routes/driverRating');
+const referralRoutes = require('./routes/referral');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -104,6 +106,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/socket', socketRoutes);
 app.use('/api/background-jobs', backgroundJobRoutes);
 app.use('/api/system-settings', systemSettingsRoutes);
+app.use('/api/driver-rating', driverRatingRoutes);
+app.use('/api/referral', referralRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

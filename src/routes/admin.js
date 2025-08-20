@@ -436,11 +436,20 @@ router.get('/notifications/unread-count',
 );
 
 router.put('/notifications/:notificationId/read',
-    validateParams(paramSchemas.mongoId.keys({ notificationId: paramSchemas.mongoId.extract('id') })),
+    validateParams(Joi.object({
+        notificationId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required().messages({
+            'string.pattern.base': 'Invalid notification ID format'
+        })
+    })),
     NotificationController.markAsRead
 );
 
 router.put('/notifications/mark-all-read',
+    NotificationController.markAllAsRead
+);
+
+// Alias for mark-all-read (for frontend compatibility)
+router.put('/notifications/read',
     NotificationController.markAllAsRead
 );
 

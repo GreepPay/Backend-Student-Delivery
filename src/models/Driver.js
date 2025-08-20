@@ -95,6 +95,12 @@ const driverSchema = new mongoose.Schema({
         type: [Number],
         default: []
     },
+    // Referral points system
+    referralPoints: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     profilePicture: {
         type: String,
         trim: true
@@ -668,7 +674,8 @@ driverSchema.virtual('accountStatus').get(function () {
             lastLogin: this.lastLogin,
             isActive: this.isActive,
             isSuspended: this.isSuspended,
-            suspensionReason: this.suspensionReason
+            suspensionReason: this.suspensionReason,
+            referralPoints: this.referralPoints || 0
         },
         violations: violations,
         suspensions: activeSuspensions

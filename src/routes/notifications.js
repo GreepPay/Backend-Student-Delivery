@@ -92,6 +92,21 @@ router.put('/mark-all-read', authenticateToken, async (req, res) => {
     }
 });
 
+// Alias for mark-all-read (for frontend compatibility)
+router.put('/read', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        await NotificationController.markAllAsRead(req, res);
+    } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to mark all notifications as read'
+        });
+    }
+});
+
 // Send message from admin to driver
 router.post('/admin/send-message', authenticateToken, adminOnly, validate(schemas.sendMessage), async (req, res) => {
     try {

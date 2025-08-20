@@ -4,7 +4,8 @@ const AdminNotificationService = require('./adminNotificationService');
 
 class DriverRatingService {
     /**
-     * Calculate driver rating based on multiple performance metrics
+     * Calculate driver rating specifically for Greep SDS business model
+     * Where admins dispatch deliveries and drivers pick them up
      * @param {string} driverId - Driver ID
      * @returns {Object} Rating details
      */
@@ -24,19 +25,26 @@ class DriverRatingService {
                     rating: 5.0,
                     score: 100,
                     breakdown: {
+                        acceptanceRate: 100,
                         completionRate: 100,
-                        efficiency: 100,
+                        responseTime: 100,
                         reliability: 100,
-                        activity: 100,
-                        earnings: 100
+                        customerSatisfaction: 100
                     },
-                    factors: ['New driver - default rating']
+                    factors: ['New driver - default rating'],
+                    greepSdsMetrics: {
+                        totalAssigned: 0,
+                        totalAccepted: 0,
+                        totalCompleted: 0,
+                        averageResponseTime: 0,
+                        customerRating: 0
+                    }
                 };
             }
 
-            // Calculate various metrics
-            const metrics = this.calculateMetrics(deliveries, driver);
-            const rating = this.calculateOverallRating(metrics);
+            // Calculate Greep SDS specific metrics
+            const metrics = this.calculateGreepSdsMetrics(deliveries, driver);
+            const rating = this.calculateGreepSdsRating(metrics, deliveries);
 
             // Store old rating for comparison
             const oldRating = driver.rating || 5.0;
@@ -65,81 +73,110 @@ class DriverRatingService {
     }
 
     /**
-     * Calculate individual performance metrics
+     * Calculate Greep SDS specific performance metrics
+     * Focused on admin-assigned delivery system
      */
-    static calculateMetrics(deliveries, driver) {
-        const totalDeliveries = deliveries.length;
+    static calculateGreepSdsMetrics(deliveries, driver) {
+        const totalAssigned = deliveries.length;
+        const acceptedDeliveries = deliveries.filter(d => d.status !== 'pending' && d.status !== 'broadcasting');
         const completedDeliveries = deliveries.filter(d => d.status === 'delivered').length;
         const cancelledDeliveries = deliveries.filter(d => d.status === 'cancelled').length;
-        const pendingDeliveries = deliveries.filter(d => d.status === 'pending').length;
+        const failedDeliveries = deliveries.filter(d => d.status === 'failed').length;
 
-        // Completion Rate (30% weight)
-        const completionRate = totalDeliveries > 0 ? (completedDeliveries / totalDeliveries) * 100 : 100;
+        // 1. ACCEPTANCE RATE (35% weight) - How often driver accepts admin-assigned deliveries
+        const acceptanceRate = totalAssigned > 0 ? (acceptedDeliveries.length / totalAssigned) * 100 : 100;
 
-        // Efficiency Score (25% weight) - based on delivery time vs estimated time
-        const efficiencyScore = this.calculateEfficiencyScore(deliveries);
+        // 2. COMPLETION RATE (30% weight) - How often driver completes accepted deliveries
+        const completionRate = acceptedDeliveries.length > 0 ? (completedDeliveries / acceptedDeliveries.length) * 100 : 100;
 
-        // Reliability Score (20% weight) - based on cancellations and suspensions
-        const reliabilityScore = this.calculateReliabilityScore(driver, cancelledDeliveries, totalDeliveries);
+        // 3. RESPONSE TIME (20% weight) - How quickly driver responds to admin assignments
+        const responseTimeScore = this.calculateResponseTimeScore(deliveries);
 
-        // Activity Score (15% weight) - based on recent activity and online status
-        const activityScore = this.calculateActivityScore(driver, deliveries);
+        // 4. RELIABILITY (10% weight) - Based on cancellations, failures, and suspensions
+        const reliabilityScore = this.calculateGreepSdsReliabilityScore(driver, cancelledDeliveries, failedDeliveries, totalAssigned);
 
-        // Earnings Performance (10% weight) - based on earnings consistency
-        const earningsScore = this.calculateEarningsScore(driver, deliveries);
+        // 5. CUSTOMER SATISFACTION (5% weight) - Based on customer ratings and feedback
+        const customerSatisfactionScore = this.calculateCustomerSatisfactionScore(deliveries);
 
         return {
+            acceptanceRate,
             completionRate,
-            efficiencyScore,
+            responseTimeScore,
             reliabilityScore,
-            activityScore,
-            earningsScore,
-            totalDeliveries,
-            completedDeliveries,
-            cancelledDeliveries
+            customerSatisfactionScore,
+            totalAssigned,
+            totalAccepted: acceptedDeliveries.length,
+            totalCompleted: completedDeliveries,
+            cancelledDeliveries,
+            failedDeliveries
         };
     }
 
     /**
-     * Calculate efficiency score based on delivery times
+     * Calculate response time score - how quickly driver responds to admin assignments
      */
-    static calculateEfficiencyScore(deliveries) {
-        const completedDeliveries = deliveries.filter(d => d.status === 'delivered' && d.deliveryDuration);
+    static calculateResponseTimeScore(deliveries) {
+        const acceptedDeliveries = deliveries.filter(d =>
+            d.status !== 'pending' &&
+            d.status !== 'broadcasting' &&
+            d.assignedAt &&
+            d.acceptedAt
+        );
 
-        if (completedDeliveries.length === 0) return 100;
+        if (acceptedDeliveries.length === 0) return 100;
 
-        const avgDeliveryTime = completedDeliveries.reduce((sum, d) => sum + d.deliveryDuration, 0) / completedDeliveries.length;
+        const responseTimes = acceptedDeliveries.map(delivery => {
+            const assignedTime = new Date(delivery.assignedAt).getTime();
+            const acceptedTime = new Date(delivery.acceptedAt).getTime();
+            return (acceptedTime - assignedTime) / (1000 * 60); // Convert to minutes
+        });
 
-        // Score based on average delivery time (lower is better)
-        // Target: 30 minutes, Max: 120 minutes
-        const targetTime = 30; // minutes
-        const maxTime = 120; // minutes
+        const avgResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length;
 
-        if (avgDeliveryTime <= targetTime) return 100;
-        if (avgDeliveryTime >= maxTime) return 0;
+        // Score based on average response time
+        // Target: 2 minutes, Excellent: 1 minute, Poor: 10 minutes
+        const targetTime = 2; // minutes
+        const excellentTime = 1; // minutes
+        const poorTime = 10; // minutes
 
-        return Math.max(0, 100 - ((avgDeliveryTime - targetTime) / (maxTime - targetTime)) * 100);
+        if (avgResponseTime <= excellentTime) return 100;
+        if (avgResponseTime <= targetTime) return 90;
+        if (avgResponseTime >= poorTime) return 0;
+
+        // Linear interpolation between target and poor
+        return Math.max(0, 90 - ((avgResponseTime - targetTime) / (poorTime - targetTime)) * 90);
     }
 
     /**
-     * Calculate reliability score based on cancellations and suspensions
+     * Calculate reliability score for Greep SDS
      */
-    static calculateReliabilityScore(driver, cancelledDeliveries, totalDeliveries) {
+    static calculateGreepSdsReliabilityScore(driver, cancelledDeliveries, failedDeliveries, totalAssigned) {
         let score = 100;
 
-        // Deduct points for cancellations
-        if (totalDeliveries > 0) {
-            const cancellationRate = (cancelledDeliveries / totalDeliveries) * 100;
-            score -= cancellationRate * 2; // 2 points per 1% cancellation rate
+        // Deduct points for cancellations (major penalty in admin-assigned system)
+        if (totalAssigned > 0) {
+            const cancellationRate = (cancelledDeliveries / totalAssigned) * 100;
+            score -= cancellationRate * 3; // 3 points per 1% cancellation rate (higher penalty)
+        }
+
+        // Deduct points for failed deliveries
+        if (totalAssigned > 0) {
+            const failureRate = (failedDeliveries / totalAssigned) * 100;
+            score -= failureRate * 4; // 4 points per 1% failure rate (highest penalty)
         }
 
         // Deduct points for suspensions
         if (driver.isSuspended) {
-            score -= 30; // 30 point penalty for suspension
+            score -= 50; // 50 point penalty for suspension (higher penalty)
         }
 
-        // Bonus for being active
+        // Bonus for being active and online
         if (driver.isActive && !driver.isSuspended) {
+            score += 15;
+        }
+
+        // Bonus for being online (shows availability for admin assignments)
+        if (driver.isOnline) {
             score += 10;
         }
 
@@ -147,122 +184,133 @@ class DriverRatingService {
     }
 
     /**
-     * Calculate activity score based on recent activity and online status
+     * Calculate customer satisfaction score
      */
-    static calculateActivityScore(driver, deliveries) {
-        let score = 100;
+    static calculateCustomerSatisfactionScore(deliveries) {
+        const ratedDeliveries = deliveries.filter(d => d.rating && d.rating > 0);
 
-        // Check last login (within 7 days = good, within 30 days = okay, beyond = poor)
-        if (driver.lastLogin) {
-            const daysSinceLastLogin = (Date.now() - driver.lastLogin.getTime()) / (1000 * 60 * 60 * 24);
+        if (ratedDeliveries.length === 0) return 100; // No ratings yet
 
-            if (daysSinceLastLogin <= 7) {
-                score += 20; // Bonus for recent activity
-            } else if (daysSinceLastLogin <= 30) {
-                score += 0; // Neutral
-            } else {
-                score -= 30; // Penalty for inactivity
-            }
-        } else {
-            score -= 50; // No login history
-        }
+        const avgRating = ratedDeliveries.reduce((sum, d) => sum + d.rating, 0) / ratedDeliveries.length;
 
-        // Online status bonus
-        if (driver.isOnline) {
-            score += 15;
-        }
-
-        // Recent deliveries bonus (last 7 days)
-        const recentDeliveries = deliveries.filter(d => {
-            const deliveryDate = d.deliveredAt || d.createdAt;
-            return deliveryDate && (Date.now() - deliveryDate.getTime()) <= 7 * 24 * 60 * 60 * 1000;
-        });
-
-        if (recentDeliveries.length > 0) {
-            score += Math.min(20, recentDeliveries.length * 5); // Up to 20 points for recent activity
-        }
-
-        return Math.max(0, Math.min(100, score));
+        // Convert 5-star rating to percentage
+        return (avgRating / 5) * 100;
     }
 
     /**
-     * Calculate earnings performance score
+     * Calculate overall Greep SDS rating
      */
-    static calculateEarningsScore(driver, deliveries) {
-        if (driver.totalEarnings === 0 || driver.completedDeliveries === 0) {
-            return 100; // New driver
-        }
-
-        const avgEarningsPerDelivery = driver.totalEarnings / driver.completedDeliveries;
-
-        // Score based on earnings per delivery
-        // Target: ₺100 per delivery, Min: ₺50, Max: ₺200
-        const targetEarnings = 100;
-        const minEarnings = 50;
-        const maxEarnings = 200;
-
-        if (avgEarningsPerDelivery >= targetEarnings) {
-            return 100;
-        } else if (avgEarningsPerDelivery <= minEarnings) {
-            return 0;
-        } else {
-            return ((avgEarningsPerDelivery - minEarnings) / (targetEarnings - minEarnings)) * 100;
-        }
-    }
-
-    /**
-     * Calculate overall rating from individual metrics
-     */
-    static calculateOverallRating(metrics) {
+    static calculateGreepSdsRating(metrics, deliveries) {
+        // Greep SDS specific weights
         const weights = {
-            completionRate: 0.30,    // 30%
-            efficiencyScore: 0.25,    // 25%
-            reliabilityScore: 0.20,   // 20%
-            activityScore: 0.15,      // 15%
-            earningsScore: 0.10       // 10%
+            acceptanceRate: 0.35,           // 35% - Most important in admin-assigned system
+            completionRate: 0.30,           // 30% - Second most important
+            responseTimeScore: 0.20,        // 20% - Quick response to admin assignments
+            reliabilityScore: 0.10,         // 10% - Reliability in completing assignments
+            customerSatisfactionScore: 0.05 // 5% - Customer feedback
         };
 
         const weightedScore = (
+            metrics.acceptanceRate * weights.acceptanceRate +
             metrics.completionRate * weights.completionRate +
-            metrics.efficiencyScore * weights.efficiencyScore +
+            metrics.responseTimeScore * weights.responseTimeScore +
             metrics.reliabilityScore * weights.reliabilityScore +
-            metrics.activityScore * weights.activityScore +
-            metrics.earningsScore * weights.earningsScore
+            metrics.customerSatisfactionScore * weights.customerSatisfactionScore
         );
 
         // Convert to 5-star rating
         const finalRating = Math.max(1, Math.min(5, (weightedScore / 20) + 1));
 
-        // Generate factors for transparency
+        // Generate Greep SDS specific factors
         const factors = [];
-        if (metrics.completionRate >= 90) factors.push('Excellent completion rate');
-        if (metrics.completionRate < 70) factors.push('Low completion rate');
-        if (metrics.efficiencyScore >= 80) factors.push('High efficiency');
-        if (metrics.efficiencyScore < 60) factors.push('Slow delivery times');
-        if (metrics.reliabilityScore >= 90) factors.push('Very reliable');
-        if (metrics.reliabilityScore < 70) factors.push('Reliability concerns');
-        if (metrics.activityScore >= 80) factors.push('Highly active');
-        if (metrics.activityScore < 60) factors.push('Low activity');
-        if (metrics.earningsScore >= 80) factors.push('Good earnings performance');
-        if (metrics.earningsScore < 60) factors.push('Low earnings performance');
+
+        // Acceptance rate factors
+        if (metrics.acceptanceRate >= 95) factors.push('Excellent assignment acceptance rate');
+        if (metrics.acceptanceRate >= 85 && metrics.acceptanceRate < 95) factors.push('Good assignment acceptance rate');
+        if (metrics.acceptanceRate < 70) factors.push('Low assignment acceptance rate - concern for admin workflow');
+
+        // Completion rate factors
+        if (metrics.completionRate >= 95) factors.push('Outstanding delivery completion rate');
+        if (metrics.completionRate >= 85 && metrics.completionRate < 95) factors.push('Good delivery completion rate');
+        if (metrics.completionRate < 80) factors.push('Low completion rate - impacts customer satisfaction');
+
+        // Response time factors
+        if (metrics.responseTimeScore >= 90) factors.push('Excellent response time to admin assignments');
+        if (metrics.responseTimeScore >= 75 && metrics.responseTimeScore < 90) factors.push('Good response time to assignments');
+        if (metrics.responseTimeScore < 60) factors.push('Slow response to admin assignments');
+
+        // Reliability factors
+        if (metrics.reliabilityScore >= 90) factors.push('Highly reliable driver');
+        if (metrics.reliabilityScore < 70) factors.push('Reliability concerns - frequent cancellations/failures');
+
+        // Customer satisfaction factors
+        if (metrics.customerSatisfactionScore >= 90) factors.push('Excellent customer satisfaction');
+        if (metrics.customerSatisfactionScore < 70) factors.push('Customer satisfaction needs improvement');
+
+        // Special Greep SDS factors
+        if (metrics.totalAssigned >= 50) factors.push('Experienced Greep SDS driver');
+        if (metrics.cancelledDeliveries === 0 && metrics.totalAssigned > 10) factors.push('Perfect reliability record');
+        if (metrics.failedDeliveries > 0) factors.push('Has delivery failures - needs attention');
 
         return {
             finalRating: Math.round(finalRating * 10) / 10, // Round to 1 decimal
             score: Math.round(weightedScore),
             breakdown: {
+                acceptanceRate: Math.round(metrics.acceptanceRate),
                 completionRate: Math.round(metrics.completionRate),
-                efficiency: Math.round(metrics.efficiencyScore),
+                responseTime: Math.round(metrics.responseTimeScore),
                 reliability: Math.round(metrics.reliabilityScore),
-                activity: Math.round(metrics.activityScore),
-                earnings: Math.round(metrics.earningsScore)
+                customerSatisfaction: Math.round(metrics.customerSatisfactionScore)
             },
             factors,
-            metrics: {
-                totalDeliveries: metrics.totalDeliveries,
-                completedDeliveries: metrics.completedDeliveries,
-                cancelledDeliveries: metrics.cancelledDeliveries
+            greepSdsMetrics: {
+                totalAssigned: metrics.totalAssigned,
+                totalAccepted: metrics.totalAccepted,
+                totalCompleted: metrics.totalCompleted,
+                averageResponseTime: this.calculateAverageResponseTime(deliveries),
+                customerRating: this.calculateAverageCustomerRating(deliveries),
+                cancellationRate: metrics.totalAssigned > 0 ? Math.round((metrics.cancelledDeliveries / metrics.totalAssigned) * 100) : 0,
+                failureRate: metrics.totalAssigned > 0 ? Math.round((metrics.failedDeliveries / metrics.totalAssigned) * 100) : 0
             }
         };
+    }
+
+    /**
+     * Calculate average response time in minutes
+     */
+    static calculateAverageResponseTime(deliveries) {
+        if (!deliveries || deliveries.length === 0) return 0;
+
+        const acceptedDeliveries = deliveries.filter(d =>
+            d.status !== 'pending' &&
+            d.status !== 'broadcasting' &&
+            d.assignedAt &&
+            d.acceptedAt
+        );
+
+        if (acceptedDeliveries.length === 0) return 0;
+
+        const responseTimes = acceptedDeliveries.map(delivery => {
+            const assignedTime = new Date(delivery.assignedAt).getTime();
+            const acceptedTime = new Date(delivery.acceptedAt).getTime();
+            return (acceptedTime - assignedTime) / (1000 * 60); // Convert to minutes
+        });
+
+        return Math.round(responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length);
+    }
+
+    /**
+     * Calculate average customer rating
+     */
+    static calculateAverageCustomerRating(deliveries) {
+        if (!deliveries || deliveries.length === 0) return 0;
+
+        const ratedDeliveries = deliveries.filter(d => d.rating && d.rating > 0);
+
+        if (ratedDeliveries.length === 0) return 0;
+
+        const avgRating = ratedDeliveries.reduce((sum, d) => sum + d.rating, 0) / ratedDeliveries.length;
+        return Math.round(avgRating * 10) / 10; // Round to 1 decimal
     }
 
     /**
@@ -280,7 +328,8 @@ class DriverRatingService {
                         driverId: driver._id,
                         driverName: driver.name,
                         rating: rating.finalRating,
-                        score: rating.score
+                        score: rating.score,
+                        greepSdsMetrics: rating.greepSdsMetrics
                     });
                 } catch (error) {
                     console.error(`Error calculating rating for driver ${driver._id}:`, error);
@@ -310,6 +359,67 @@ class DriverRatingService {
             console.error('Error getting driver rating breakdown:', error);
             throw error;
         }
+    }
+
+    /**
+     * Get Greep SDS specific driver insights
+     */
+    static async getGreepSdsDriverInsights(driverId) {
+        try {
+            const rating = await this.calculateDriverRating(driverId);
+            const driver = await Driver.findById(driverId);
+
+            return {
+                driverId,
+                driverName: driver.name,
+                rating: rating.finalRating,
+                score: rating.score,
+                greepSdsMetrics: rating.greepSdsMetrics,
+                breakdown: rating.breakdown,
+                factors: rating.factors,
+                recommendations: this.generateGreepSdsRecommendations(rating)
+            };
+        } catch (error) {
+            console.error('Error getting Greep SDS driver insights:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate Greep SDS specific recommendations
+     */
+    static generateGreepSdsRecommendations(rating) {
+        const recommendations = [];
+
+        if (rating.breakdown.acceptanceRate < 80) {
+            recommendations.push('Improve assignment acceptance rate to maintain good standing with admin team');
+        }
+
+        if (rating.breakdown.completionRate < 85) {
+            recommendations.push('Focus on completing accepted deliveries to improve reliability score');
+        }
+
+        if (rating.breakdown.responseTime < 70) {
+            recommendations.push('Respond faster to admin assignments to improve efficiency');
+        }
+
+        if (rating.greepSdsMetrics.cancellationRate > 10) {
+            recommendations.push('Reduce cancellations to maintain admin trust and priority assignments');
+        }
+
+        if (rating.greepSdsMetrics.failureRate > 5) {
+            recommendations.push('Address delivery failures to prevent suspension risk');
+        }
+
+        if (rating.breakdown.customerSatisfaction < 80) {
+            recommendations.push('Improve customer service to maintain high satisfaction ratings');
+        }
+
+        if (recommendations.length === 0) {
+            recommendations.push('Excellent performance! Continue maintaining high standards');
+        }
+
+        return recommendations;
     }
 }
 

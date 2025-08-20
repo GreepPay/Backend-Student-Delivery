@@ -870,6 +870,12 @@ class AnalyticsService {
             // Group by week
             const weeklyBreakdown = {};
 
+            // Get active earnings configuration
+            const EarningsConfig = require('../models/EarningsConfig');
+            const EarningsService = require('./earningsService');
+            const activeConfig = await EarningsConfig.getActiveConfig();
+            const earningsRules = activeConfig ? activeConfig.getRulesArray() : EarningsService.defaultEarningsRules.rules;
+
             deliveries.forEach(delivery => {
                 const deliveryDate = new Date(delivery.deliveredAt);
                 const weekKey = `${deliveryDate.getFullYear()}-W${this.getWeekNumber(deliveryDate)}`;
@@ -886,11 +892,46 @@ class AnalyticsService {
                 }
 
                 weeklyBreakdown[weekKey].deliveries += 1;
-                weeklyBreakdown[weekKey].earnings += delivery.driverEarning || 0;
                 weeklyBreakdown[weekKey].revenue += delivery.fee || 0;
-                // Only add remission for cash payments (drivers owe remission for cash they collected)
+
+                // Calculate earnings based on active configuration
+                const deliveryFee = delivery.fee || 0;
+                const applicableRule = earningsRules.find(rule =>
+                    deliveryFee >= rule.minFee && deliveryFee <= rule.maxFee
+                );
+
+                let driverEarning, companyEarning;
+
+                if (applicableRule) {
+                    if (applicableRule.driverFixed !== null) {
+                        // Use fixed amount for driver
+                        driverEarning = applicableRule.driverFixed;
+                        companyEarning = deliveryFee - driverEarning;
+                    } else if (applicableRule.driverPercentage !== null) {
+                        // Use percentage for driver
+                        driverEarning = Math.round(deliveryFee * (applicableRule.driverPercentage / 100));
+                        companyEarning = deliveryFee - driverEarning;
+                    } else {
+                        // Fallback to 50/50 split
+                        driverEarning = Math.round(deliveryFee / 2);
+                        companyEarning = deliveryFee - driverEarning;
+                    }
+                } else {
+                    // Fallback to 50/50 split if no rule found
+                    driverEarning = Math.round(deliveryFee / 2);
+                    companyEarning = deliveryFee - driverEarning;
+                }
+
+                // For cash payments: driver owes company their cut
+                // For other payments: company owes driver their earnings
                 if (delivery.paymentMethod === 'cash') {
-                    weeklyBreakdown[weekKey].remissionOwed += 50; // ₺50 per cash delivery
+                    // Driver collected cash, owes company their cut
+                    weeklyBreakdown[weekKey].remissionOwed += companyEarning;
+                    weeklyBreakdown[weekKey].earnings += driverEarning;
+                } else {
+                    // Company collected payment, owes driver their earnings
+                    weeklyBreakdown[weekKey].earnings += driverEarning;
+                    // No remission owed for non-cash payments
                 }
             });
 

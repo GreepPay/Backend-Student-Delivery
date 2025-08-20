@@ -18,7 +18,7 @@ const {
     schemas,
     paramSchemas
 } = require('../middleware/validation');
-const { uploadSingleImage, handleUploadError } = require('../middleware/upload');
+const { uploadSingleImage, uploadDocument, handleUploadError } = require('../middleware/upload');
 
 const router = express.Router();
 
@@ -228,7 +228,7 @@ router.get('/status', (req, res, next) => {
 router.get('/profile-options', DriverController.getProfileOptions);
 
 router.post('/documents/:documentType/upload',
-    uploadSingleImage,
+    uploadDocument,
     handleUploadError,
     validateParams(Joi.object({
         documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense').required()

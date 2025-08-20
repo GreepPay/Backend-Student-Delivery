@@ -197,22 +197,66 @@ class EarningsService {
 
             const deliveries = await Delivery.find(query);
 
+            // Get active earnings configuration
+            const activeConfig = await EarningsConfig.getActiveConfig();
+            const earningsRules = activeConfig ? activeConfig.getRulesArray() : this.defaultEarningsRules.rules;
+
             const summary = deliveries.reduce((acc, delivery) => {
                 acc.totalDeliveries += 1;
-                acc.totalEarnings += delivery.driverEarning;
-                acc.totalRevenue += delivery.fee;
-                acc.totalCompanyEarnings += delivery.companyEarning;
+                acc.totalRevenue += delivery.fee || 0;
+
+                // Calculate earnings based on active configuration
+                const deliveryFee = delivery.fee || 0;
+                const applicableRule = earningsRules.find(rule =>
+                    deliveryFee >= rule.minFee && deliveryFee <= rule.maxFee
+                );
+
+                let driverEarning, companyEarning;
+
+                if (applicableRule) {
+                    if (applicableRule.driverFixed !== null) {
+                        // Use fixed amount for driver
+                        driverEarning = applicableRule.driverFixed;
+                        companyEarning = deliveryFee - driverEarning;
+                    } else if (applicableRule.driverPercentage !== null) {
+                        // Use percentage for driver
+                        driverEarning = Math.round(deliveryFee * (applicableRule.driverPercentage / 100));
+                        companyEarning = deliveryFee - driverEarning;
+                    } else {
+                        // Fallback to 50/50 split
+                        driverEarning = Math.round(deliveryFee / 2);
+                        companyEarning = deliveryFee - driverEarning;
+                    }
+                } else {
+                    // Fallback to 50/50 split if no rule found
+                    driverEarning = Math.round(deliveryFee / 2);
+                    companyEarning = deliveryFee - driverEarning;
+                }
+
+                // For cash payments: driver owes company their cut
+                // For other payments: company owes driver their earnings
+                if (delivery.paymentMethod === 'cash') {
+                    // Driver collected cash, owes company their cut
+                    acc.totalRemissionOwed += companyEarning;
+                    acc.totalEarnings += driverEarning;
+                } else {
+                    // Company collected payment, owes driver their earnings
+                    acc.totalEarnings += driverEarning;
+                    // No remission owed for non-cash payments
+                }
+
+                acc.totalCompanyEarnings += companyEarning;
 
                 // Group by fee ranges
-                if (delivery.fee <= 100) {
+                if (deliveryFee <= 100) {
                     acc.range100 += 1;
-                    acc.range100Earnings += delivery.driverEarning;
-                } else if (delivery.fee <= 150) {
+                    acc.range100Earnings += driverEarning;
+                } else if (deliveryFee <= 150) {
                     acc.range150 += 1;
-                    acc.range150Earnings += delivery.driverEarning;
+                    acc.range150Earnings += driverEarning;
                 } else {
                     acc.rangeOver150 += 1;
-                    acc.rangeOver150Earnings += delivery.driverEarning;
+                    acc.rangeOver150Earnings += driverEarning;
                 }
 
                 return acc;
@@ -221,6 +265,7 @@ class EarningsService {
                 totalEarnings: 0,
                 totalRevenue: 0,
                 totalCompanyEarnings: 0,
+                totalRemissionOwed: 0,
                 range100: 0,
                 range100Earnings: 0,
                 range150: 0,

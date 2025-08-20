@@ -3,6 +3,9 @@ const router = express.Router();
 const DriverRatingController = require('../controllers/driverRatingController');
 const { authenticateToken, adminOnly } = require('../middleware/auth');
 
+// Test endpoint for Greep SDS rating system (no admin required for testing)
+router.get('/test/:driverId', DriverRatingController.calculateDriverRating);
+
 // All routes require admin authentication
 router.use(authenticateToken, adminOnly);
 
