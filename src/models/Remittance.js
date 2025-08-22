@@ -179,6 +179,18 @@ const remittanceSchema = new mongoose.Schema({
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Admin'
+    },
+
+    // Cancellation Details
+    cancelledAt: {
+        type: Date
+    },
+    cancelledBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin'
+    },
+    cancelReason: {
+        type: String
     }
 }, {
     timestamps: true

@@ -19,7 +19,7 @@ class AdminController {
 
             // Get recent deliveries
             const recentDeliveries = await Delivery.find()
-                .populate('assignedTo', 'name email area')
+                .populate('assignedTo', 'name email area profilePicture profileImage avatar image')
                 .sort({ createdAt: -1 })
                 .limit(10);
 
@@ -49,7 +49,7 @@ class AdminController {
     static getRecentDeliveries = catchAsync(async (req, res) => {
         try {
             const recentDeliveries = await Delivery.find()
-                .populate('assignedTo', 'name email area')
+                .populate('assignedTo', 'name email area profilePicture profileImage avatar image')
                 .sort({ createdAt: -1 })
                 .limit(10);
 
@@ -84,7 +84,7 @@ class AdminController {
     static getDriverStatus = catchAsync(async (req, res) => {
         try {
             const drivers = await Driver.find({ isActive: true })
-                .select('_id name email area isOnline isActive lastLogin totalDeliveries totalEarnings rating')
+                .select('_id name email area isOnline isActive lastLogin totalDeliveries totalEarnings rating profilePicture profileImage avatar image')
                 .sort({ lastLogin: -1 });
 
             const driverStatus = drivers.map(driver => {
@@ -103,7 +103,11 @@ class AdminController {
                     lastLogin: driver.lastLogin,
                     totalDeliveries: driver.totalDeliveries || 0,
                     totalEarnings: driver.totalEarnings || 0,
-                    rating: driver.rating || 0
+                    rating: driver.rating || 0,
+                    profilePicture: driver.profilePicture,
+                    profileImage: driver.profileImage,
+                    avatar: driver.avatar,
+                    image: driver.image
                 };
             });
 
@@ -120,21 +124,23 @@ class AdminController {
 
     // Invite new driver
     static inviteDriver = catchAsync(async (req, res) => {
-        const { name, email } = req.body;
+        const { name, email, referralCode } = req.body;
         const { user } = req;
 
         try {
             const invitation = await DriverInvitationService.createInvitation({
                 name,
                 email,
-                invitedBy: user.id
+                invitedBy: user.id,
+                referralCode
             });
 
             successResponse(res, {
                 invitationId: invitation._id,
                 email: invitation.email,
                 status: invitation.status,
-                expiresAt: invitation.expiresAt
+                expiresAt: invitation.expiresAt,
+                referralCode: invitation.referralCode
             }, 'Driver invitation sent successfully');
         } catch (error) {
             errorResponse(res, error, 400);
@@ -1072,7 +1078,9 @@ class AdminController {
                         // Include documents even if they don't have documentUrl (for pending status)
                         if (doc && (doc.status || doc.documentUrl)) {
                             // Determine if document has actual file uploaded
+                            // Check for documentUrl first, then fall back to status check
                             const hasFile = doc.documentUrl && doc.documentUrl.includes('cloudinary.com');
+                            const hasUploadedStatus = doc.status && doc.status !== 'pending' && doc.uploadDate;
                             const uploadDate = doc.uploadDate || (hasFile ? new Date() : null);
 
                             documents.push({
@@ -1093,9 +1101,16 @@ class AdminController {
                                 profilePicture: driver.profilePicture,
                                 joinedAt: driver.joinedAt,
                                 // Add helpful flags for frontend
-                                hasFile: hasFile,
-                                needsUpload: !hasFile && doc.status === 'pending',
-                                canVerify: hasFile && doc.status === 'pending'
+                                hasFile: hasFile || hasUploadedStatus,
+                                needsUpload: !hasFile && !hasUploadedStatus && doc.status === 'pending',
+                                canVerify: (hasFile || hasUploadedStatus) && doc.status === 'pending',
+                                needsReupload: !hasFile && hasUploadedStatus,
+                                // Add status message for frontend
+                                statusMessage: !hasFile && hasUploadedStatus ?
+                                    'Document uploaded but URL missing - needs re-upload' :
+                                    doc.status === 'pending' ? 'Pending verification' :
+                                        doc.status === 'verified' ? 'Verified' :
+                                            doc.status === 'rejected' ? 'Rejected' : 'Unknown status'
                             });
                         }
                     });
@@ -2218,6 +2233,199 @@ class AdminController {
         }
     });
 
+    // Get available referral codes for driver invitation
+    static getAvailableReferralCodes = catchAsync(async (req, res) => {
+        try {
+            const InvitationReferralCode = require('../models/InvitationReferralCode');
+
+            // Get all active referral codes with referrer information
+            const referralCodes = await InvitationReferralCode.find({
+                status: 'active'
+            })
+                .populate('referrer', 'name email')
+                .sort({ createdAt: -1 });
+
+            // Format the response
+            const availableCodes = referralCodes.map(code => ({
+                referralCode: code.referralCode,
+                referrerName: code.referrer.name,
+                referrerEmail: code.referrer.email,
+                createdAt: code.createdAt,
+                expiresAt: code.expiresAt
+            }));
+
+            successResponse(res, {
+                availableCodes,
+                total: availableCodes.length
+            }, 'Available referral codes retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // ========================================
+    // LEADERBOARD CONTROLLER METHODS
+    // ========================================
+
+    // Get leaderboard data
+    static getLeaderboard = catchAsync(async (req, res) => {
+        const { category = 'overall', period = 'month', limit = 20 } = req.query;
+
+        try {
+            console.log('🎯 Leaderboard request:', { category, period, limit });
+
+            // Get all active drivers
+            const drivers = await Driver.find({
+                isActive: true,
+                isSuspended: false
+            }).lean();
+
+            if (!drivers || drivers.length === 0) {
+                return successResponse(res, {
+                    leaderboard: [],
+                    category,
+                    period,
+                    total: 0,
+                    limit: parseInt(limit)
+                }, 'No drivers found for leaderboard');
+            }
+
+            console.log(`✅ Found ${drivers.length} drivers for leaderboard`);
+
+            // Calculate leaderboard data using driver's stored statistics
+            const leaderboardData = drivers.map((driver) => {
+                // Use driver's stored statistics
+                const totalDeliveries = driver.totalDeliveries || 0;
+                const totalEarnings = driver.totalEarnings || 0;
+                const completedDeliveries = driver.completedDeliveries || 0;
+                const rating = driver.rating || 4.5;
+                const totalReferrals = driver.referralPoints || 0;
+                const completionRate = driver.completionRate || 0;
+                const avgDeliveryTime = 25; // Placeholder - could be calculated from actual delivery times
+
+                // Calculate points based on category
+                const points = AdminController.calculateLeaderboardPoints({
+                    totalDeliveries,
+                    totalEarnings,
+                    rating,
+                    totalReferrals,
+                    avgDeliveryTime,
+                    completionRate
+                }, category);
+
+                return {
+                    _id: driver._id,
+                    name: driver.name || driver.fullName || 'Unknown Driver',
+                    email: driver.email,
+                    phone: driver.phone,
+                    totalDeliveries,
+                    totalEarnings,
+                    rating: parseFloat(rating.toFixed(1)),
+                    completionRate: parseFloat(completionRate.toFixed(1)),
+                    avgDeliveryTime,
+                    totalReferrals,
+                    isOnline: driver.isOnline || false,
+                    lastActive: driver.lastLogin || driver.updatedAt,
+                    points: Math.round(points),
+                    profilePicture: driver.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name || 'Driver')}&background=random`
+                };
+            });
+
+            // Sort by points for the selected category
+            leaderboardData.sort((a, b) => b.points - a.points);
+
+            // Apply limit
+            const limitedData = leaderboardData.slice(0, parseInt(limit));
+
+            console.log(`✅ Leaderboard data processed: ${limitedData.length} drivers`);
+
+            return successResponse(res, {
+                leaderboard: limitedData,
+                period,
+                generatedAt: new Date().toISOString()
+            }, 'Driver leaderboard retrieved successfully');
+
+        } catch (error) {
+            console.error('❌ Leaderboard API error:', error);
+            return errorResponse(res, error, 500);
+        }
+    });
+
+    // Get leaderboard categories
+    static getLeaderboardCategories = catchAsync(async (req, res) => {
+        try {
+            const categories = [
+                {
+                    id: 'overall',
+                    name: 'Overall Champions',
+                    icon: '🏆',
+                    description: 'Best overall performance across all metrics'
+                },
+                {
+                    id: 'delivery',
+                    name: 'Delivery Masters',
+                    icon: '📦',
+                    description: 'Most deliveries completed'
+                },
+                {
+                    id: 'earnings',
+                    name: 'Top Earners',
+                    icon: '💰',
+                    description: 'Highest earnings generated'
+                },
+                {
+                    id: 'referrals',
+                    name: 'Referral Kings',
+                    icon: '👥',
+                    description: 'Most successful referrals'
+                },
+                {
+                    id: 'rating',
+                    name: 'Rating Stars',
+                    icon: '⭐',
+                    description: 'Highest customer ratings'
+                },
+                {
+                    id: 'speed',
+                    name: 'Speed Demons',
+                    icon: '⚡',
+                    description: 'Fastest delivery times'
+                }
+            ];
+
+            successResponse(res, {
+                data: categories
+            }, 'Leaderboard categories retrieved successfully');
+
+        } catch (error) {
+            console.error('❌ Leaderboard categories API error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Helper function to calculate points based on category
+    static calculateLeaderboardPoints = (driver, category) => {
+        switch (category) {
+            case 'overall':
+                return (driver.totalDeliveries * 10) +
+                    (driver.totalEarnings * 0.1) +
+                    (driver.rating * 10) +
+                    (driver.totalReferrals * 20) +
+                    (driver.completionRate * 0.5);
+            case 'delivery':
+                return driver.totalDeliveries * 10;
+            case 'earnings':
+                return driver.totalEarnings * 0.1;
+            case 'referrals':
+                return driver.totalReferrals * 20;
+            case 'rating':
+                return driver.rating * 10;
+            case 'speed':
+                return driver.avgDeliveryTime ? (100 - driver.avgDeliveryTime) : 50;
+            default:
+                return (driver.totalDeliveries * 10) + (driver.totalEarnings * 0.1);
+        }
+    };
 
 }
 

@@ -18,6 +18,9 @@ const backgroundJobRoutes = require('./routes/backgroundJobs');
 const systemSettingsRoutes = require('./routes/systemSettings');
 const driverRatingRoutes = require('./routes/driverRating');
 const referralRoutes = require('./routes/referral');
+const referralRewardsRoutes = require('./routes/referralRewards');
+const publicRoutes = require('./routes/public');
+const remittanceRoutes = require('./routes/remittance');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -99,6 +102,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', authRoutes); // Alias for backward compatibility
 app.use('/api/admin', adminRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/delivery', deliveryRoutes);
@@ -108,6 +112,9 @@ app.use('/api/background-jobs', backgroundJobRoutes);
 app.use('/api/system-settings', systemSettingsRoutes);
 app.use('/api/driver-rating', driverRatingRoutes);
 app.use('/api/referral', referralRoutes);
+app.use('/api/referral-rewards', referralRewardsRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/admin/remittances', remittanceRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

@@ -586,6 +586,20 @@ class DriverController {
                 } catch (referralError) {
                     console.error('Failed to update referral progress:', referralError.message);
                 }
+
+                // Process referral rewards for completed delivery
+                try {
+                    const ReferralRewardsService = require('../services/referralRewardsService');
+                    const { rewards } = await ReferralRewardsService.calculateDeliveryRewards(deliveryId, delivery.assignedTo.toString());
+
+                    if (rewards.length > 0) {
+                        await ReferralRewardsService.processRewards(rewards);
+                        console.log(`Processed ${rewards.length} referral rewards for delivery ${deliveryId}`);
+                    }
+                } catch (rewardError) {
+                    console.error('Failed to process referral rewards:', rewardError.message);
+                    // Don't fail the delivery update if referral rewards fail
+                }
             }
 
             successResponse(res, updatedDelivery, 'Delivery status updated successfully');
@@ -1198,7 +1212,25 @@ class DriverController {
                 });
             }
 
+            console.log('📊 Driver ID type:', typeof driverId, 'Value:', driverId);
+            console.log('📊 Driver ObjectId:', driver._id.toString());
+
+            // Debug: Check raw deliveries for this driver
+            const debugDeliveries = await Delivery.find({ assignedTo: driverId });
+            console.log('📊 Total deliveries found for driver:', debugDeliveries.length);
+            const debugDelivered = await Delivery.find({ assignedTo: driverId, status: 'delivered' });
+            console.log('📊 Delivered deliveries found:', debugDelivered.length);
+
+            if (debugDelivered.length > 0) {
+                console.log('📊 Sample delivered delivery dates:');
+                debugDelivered.slice(0, 3).forEach(d => {
+                    console.log(`   - ${d.deliveryCode}: deliveredAt=${d.deliveredAt?.toISOString() || 'null'}, createdAt=${d.createdAt?.toISOString()}`);
+                });
+            }
+
             // Get all dashboard data in parallel
+            console.log('📊 Starting analytics calls for periods:', { period, today: 'today', week: 'week' });
+
             const [
                 currentPeriodAnalytics,
                 todayAnalytics,
@@ -1210,13 +1242,38 @@ class DriverController {
                 earnings
             ] = await Promise.all([
                 // Current period analytics (month by default)
-                AnalyticsService.getDriverAnalytics(driverId, period),
+                AnalyticsService.getDriverAnalytics(driverId, period).then(result => {
+                    console.log('📊 Current period analytics result:', {
+                        period,
+                        totalDeliveries: result.stats.totalDeliveries,
+                        totalEarnings: result.stats.totalEarnings,
+                        startDate: result.startDate?.toISOString(),
+                        endDate: result.endDate?.toISOString()
+                    });
+                    return result;
+                }),
 
                 // Today's analytics
-                AnalyticsService.getDriverAnalytics(driverId, 'today'),
+                AnalyticsService.getDriverAnalytics(driverId, 'today').then(result => {
+                    console.log('📊 Today analytics result:', {
+                        totalDeliveries: result.stats.totalDeliveries,
+                        totalEarnings: result.stats.totalEarnings,
+                        startDate: result.startDate?.toISOString(),
+                        endDate: result.endDate?.toISOString()
+                    });
+                    return result;
+                }),
 
                 // This week's analytics
-                AnalyticsService.getDriverAnalytics(driverId, 'week'),
+                AnalyticsService.getDriverAnalytics(driverId, 'week').then(result => {
+                    console.log('📊 Week analytics result:', {
+                        totalDeliveries: result.stats.totalDeliveries,
+                        totalEarnings: result.stats.totalEarnings,
+                        startDate: result.startDate?.toISOString(),
+                        endDate: result.endDate?.toISOString()
+                    });
+                    return result;
+                }),
 
                 // Recent deliveries (last 10)
                 Delivery.find({ assignedTo: driverId })
@@ -1263,16 +1320,16 @@ class DriverController {
                     }
                 ]),
 
-                // Today's deliveries detail
+                // Today's deliveries detail - use assignedAt instead of createdAt
                 Delivery.find({
                     assignedTo: driverId,
-                    createdAt: {
+                    assignedAt: {
                         $gte: new Date().setHours(0, 0, 0, 0),
                         $lte: new Date().setHours(23, 59, 59, 999)
                     }
                 })
-                    .select('deliveryCode status pickupLocation deliveryLocation fee driverEarning priority')
-                    .sort({ createdAt: -1 }),
+                    .select('deliveryCode status pickupLocation deliveryLocation fee driverEarning priority assignedAt')
+                    .sort({ assignedAt: -1 }),
 
                 // Earnings breakdown
                 AnalyticsService.getDriverEarningsBreakdown(driverId, period)
@@ -1282,6 +1339,14 @@ class DriverController {
             const accountStatus = driver.accountStatus;
 
             // Calculate quick stats
+            console.log('📊 Today deliveries found:', todayDeliveries.length);
+            console.log('📊 Today deliveries details:', todayDeliveries.map(d => ({
+                deliveryCode: d.deliveryCode,
+                status: d.status,
+                assignedAt: d.assignedAt,
+                createdAt: d.createdAt
+            })));
+
             const quickStats = {
                 today: {
                     deliveries: todayDeliveries.length,
@@ -1320,6 +1385,14 @@ class DriverController {
                     };
                 })()
             };
+
+            // Debug: Log quickStats for troubleshooting
+            console.log('📊 QuickStats calculated:', {
+                today: quickStats.today,
+                thisWeek: quickStats.thisWeek,
+                currentPeriod: quickStats.currentPeriod,
+                allTime: quickStats.allTime
+            });
 
             // Performance metrics
             const performance = {
@@ -1459,7 +1532,7 @@ class DriverController {
                 { type: 'profilePhoto', label: 'Profile Photo', required: true },
                 { type: 'universityEnrollment', label: 'University Enrollment Certificate', required: true },
                 { type: 'identityCard', label: 'Identity Card', required: true },
-                { type: 'transportationLicense', label: 'Transportation License', required: false, conditionallyRequired: ['car', 'motorcycle'] }
+
             ]
         };
 
@@ -1483,7 +1556,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'];
+            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1541,7 +1614,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'];
+            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1854,6 +1927,251 @@ class DriverController {
             errorResponse(res, error, 400);
         }
     });
+
+    // Add this method to the DriverController class
+    static async getDriverLeaderboard(req, res) {
+        try {
+            const { category = 'overall', period = 'month', limit = 10 } = req.query;
+
+            // Validate category
+            const validCategories = ['overall', 'delivery', 'earnings', 'referrals', 'rating'];
+            if (!validCategories.includes(category)) {
+                return errorResponse(res, 'Invalid category', 400);
+            }
+
+            // Validate period
+            const validPeriods = ['today', 'week', 'thisWeek', 'month', 'monthly', 'currentPeriod', 'year', 'all-time', 'allTime'];
+            if (!validPeriods.includes(period)) {
+                return errorResponse(res, 'Invalid period', 400);
+            }
+
+            // Calculate date range based on period
+            const now = new Date();
+            let startDate = new Date();
+
+            switch (period) {
+                case 'today':
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'week':
+                case 'thisWeek':
+                    startDate.setDate(now.getDate() - now.getDay());
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'month':
+                case 'monthly':
+                case 'currentPeriod':
+                    startDate.setDate(1);
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'year':
+                    startDate.setMonth(0, 1);
+                    startDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'all-time':
+                case 'allTime':
+                    startDate = new Date(0); // Beginning of time
+                    break;
+                default:
+                    startDate.setDate(1);
+                    startDate.setHours(0, 0, 0, 0);
+            }
+
+            console.log(`🏆 Leaderboard: Period ${period}, Start date: ${startDate.toISOString()}, End date: ${now.toISOString()}`);
+
+            // Get drivers with period-specific stats using aggregation
+            console.log(`🏆 Leaderboard: Starting aggregation for ${period} period...`);
+            const drivers = await Driver.aggregate([
+                {
+                    $lookup: {
+                        from: 'deliveries',
+                        localField: '_id',
+                        foreignField: 'assignedTo',
+                        pipeline: [
+                            {
+                                $match: {
+                                    $or: [
+                                        { assignedAt: { $gte: startDate, $lte: now } },
+                                        { createdAt: { $gte: startDate, $lte: now } },
+                                        { deliveredAt: { $gte: startDate, $lte: now } }
+                                    ]
+                                }
+                            }
+                        ],
+                        as: 'periodDeliveries'
+                    }
+                },
+                {
+                    $addFields: {
+                        periodStats: {
+                            totalDeliveries: { $size: '$periodDeliveries' },
+                            totalEarnings: {
+                                $sum: {
+                                    $map: {
+                                        input: '$periodDeliveries',
+                                        as: 'delivery',
+                                        in: { $ifNull: ['$$delivery.driverEarning', 0] }
+                                    }
+                                }
+                            },
+                            completedDeliveries: {
+                                $size: {
+                                    $filter: {
+                                        input: '$periodDeliveries',
+                                        as: 'delivery',
+                                        cond: { $eq: ['$$delivery.status', 'delivered'] }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        name: 1,
+                        email: 1,
+                        phone: 1,
+                        rating: 1,
+                        completionRate: 1,
+                        avgDeliveryTime: 1,
+                        totalReferrals: 1,
+                        referralPoints: 1,
+                        profilePicture: 1,
+                        isOnline: 1,
+                        lastActive: 1,
+                        periodStats: 1
+                    }
+                },
+                {
+                    $sort: { 'periodStats.totalDeliveries': -1, 'periodStats.totalEarnings': -1 }
+                },
+                {
+                    $limit: parseInt(limit) || 10
+                }
+            ]);
+
+            console.log(`🏆 Leaderboard: Aggregation completed. Found ${drivers.length} drivers with period data.`);
+            console.log(`🏆 Leaderboard: Sample driver data:`, drivers.length > 0 ? {
+                name: drivers[0].name,
+                periodStats: drivers[0].periodStats,
+                totalDeliveries: drivers[0].periodStats?.totalDeliveries || 0,
+                totalEarnings: drivers[0].periodStats?.totalEarnings || 0
+            } : 'No drivers found');
+
+            // Calculate points for each driver based on category using period-specific stats
+            const driversWithPoints = drivers.map(driver => {
+                let points = 0;
+                const periodStats = driver.periodStats || {};
+
+                switch (category) {
+                    case 'delivery':
+                        points = (periodStats.totalDeliveries || 0) * 10;
+                        break;
+                    case 'earnings':
+                        points = Math.round((periodStats.totalEarnings || 0) * 0.3);
+                        break;
+                    case 'referrals':
+                        points = (driver.totalReferrals || 0) * 20; // Referrals are lifetime
+                        break;
+                    case 'rating':
+                        points = Math.round((driver.rating || 0) * 50); // Rating is lifetime
+                        break;
+                    default: // overall
+                        points = Math.round(
+                            (periodStats.totalDeliveries || 0) * 10 +
+                            (periodStats.totalEarnings || 0) * 0.3 +
+                            (driver.rating || 0) * 50 +
+                            (driver.totalReferrals || 0) * 20
+                        );
+                }
+
+                return {
+                    _id: driver._id,
+                    name: driver.name,
+                    email: driver.email,
+                    phone: driver.phone,
+                    totalDeliveries: periodStats.totalDeliveries || 0,
+                    totalEarnings: periodStats.totalEarnings || 0,
+                    rating: driver.rating || 0,
+                    completionRate: driver.completionRate || 0,
+                    avgDeliveryTime: driver.avgDeliveryTime || 0,
+                    totalReferrals: driver.totalReferrals || 0,
+                    referralPoints: driver.referralPoints || 0,
+                    isOnline: driver.isOnline || false,
+                    lastActive: driver.lastActive,
+                    points: points,
+                    profilePicture: driver.profilePicture
+                };
+            });
+
+            // Sort by points in descending order
+            driversWithPoints.sort((a, b) => b.points - a.points);
+
+            console.log(`🏆 Leaderboard: Final result - ${driversWithPoints.length} drivers with points:`,
+                driversWithPoints.map(d => ({
+                    name: d.name,
+                    totalDeliveries: d.totalDeliveries,
+                    totalEarnings: d.totalEarnings,
+                    points: d.points
+                }))
+            );
+
+            return successResponse(res, {
+                leaderboard: driversWithPoints,
+                period: period,
+                generatedAt: new Date().toISOString()
+            }, 'Driver leaderboard retrieved successfully');
+
+        } catch (error) {
+            console.error('Error getting driver leaderboard:', error);
+            return errorResponse(res, 'Failed to retrieve leaderboard', 500);
+        }
+    }
+
+    static async getDriverLeaderboardCategories(req, res) {
+        try {
+            const categories = [
+                {
+                    id: 'overall',
+                    name: 'Overall Champions',
+                    icon: '🏆',
+                    description: 'Best overall performance across all metrics'
+                },
+                {
+                    id: 'delivery',
+                    name: 'Delivery Masters',
+                    icon: '📦',
+                    description: 'Most deliveries completed'
+                },
+                {
+                    id: 'earnings',
+                    name: 'Top Earners',
+                    icon: '💰',
+                    description: 'Highest earnings generated'
+                },
+                {
+                    id: 'referrals',
+                    name: 'Referral Kings',
+                    icon: '👥',
+                    description: 'Most successful referrals'
+                },
+                {
+                    id: 'rating',
+                    name: 'Rating Stars',
+                    icon: '⭐',
+                    description: 'Highest customer ratings'
+                }
+            ];
+
+            return successResponse(res, {
+                data: categories
+            }, 'Leaderboard categories retrieved successfully');
+
+        } catch (error) {
+            console.error('Error getting leaderboard categories:', error);
+            return errorResponse(res, 'Failed to retrieve categories', 500);
+        }
+    }
 }
 
 module.exports = DriverController;

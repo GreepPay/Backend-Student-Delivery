@@ -156,6 +156,9 @@ class RemittanceService {
             // Send notification to driver
             await this.sendRemittanceNotification(remittance);
 
+            // Send WebSocket notification to driver
+            await this.sendWebSocketNotification(remittance);
+
             return {
                 success: true,
                 remittance,
@@ -165,6 +168,43 @@ class RemittanceService {
         } catch (error) {
             console.error('Error generating remittance:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Send WebSocket notification to driver
+     * @param {Object} remittance - Remittance object
+     */
+    static async sendWebSocketNotification(remittance) {
+        try {
+            const socketService = require('./socketService');
+
+            const remittanceData = {
+                remittanceId: remittance._id,
+                amount: remittance.amount,
+                status: remittance.status,
+                referenceNumber: remittance.referenceNumber,
+                dueDate: remittance.dueDate,
+                message: `New remittance created: ₺${remittance.amount}`,
+                timestamp: new Date().toISOString()
+            };
+
+            // Send to specific driver room
+            const driverRoom = `driver-${remittance.driverId}`;
+            socketService.io.to(driverRoom).emit('remittance-created', remittanceData);
+
+            // Send to admin room for real-time updates
+            socketService.io.to('admin-room').emit('remittance-created', {
+                ...remittanceData,
+                driverId: remittance.driverId,
+                driverName: remittance.driverName,
+                message: `New remittance created for ${remittance.driverName}: ₺${remittance.amount}`
+            });
+
+            console.log(`💰 WebSocket notification sent for remittance: ${remittance.referenceNumber}`);
+        } catch (error) {
+            console.error('Error sending WebSocket notification:', error);
+            // Don't throw error to avoid breaking the main process
         }
     }
 

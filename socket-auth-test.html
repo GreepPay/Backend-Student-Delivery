@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket Authentication Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+      }
+      .connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .authenticated {
+        background-color: #cce5ff;
+        color: #004085;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+      }
+      #log {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔐 Socket Authentication Test</h1>
+
+    <div id="status" class="status disconnected">Status: Disconnected</div>
+
+    <button onclick="connectSocket()">Connect WebSocket</button>
+    <button onclick="authenticateSocket()">Authenticate Socket</button>
+    <button onclick="testDeliveryBroadcast()">Test Delivery Broadcast</button>
+    <button onclick="clearLog()">Clear Log</button>
+
+    <h3>Connection Log:</h3>
+    <div id="log"></div>
+
+    <script>
+      let socket = null;
+      let isAuthenticated = false;
+      const statusDiv = document.getElementById("status");
+      const logDiv = document.getElementById("log");
+
+      function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+        console.log(message);
+      }
+
+      function updateStatus(status, authenticated = false) {
+        if (authenticated) {
+          statusDiv.className = "status authenticated";
+          statusDiv.textContent = `Status: ${status} (Authenticated)`;
+        } else if (status === "Connected") {
+          statusDiv.className = "status connected";
+          statusDiv.textContent = `Status: ${status}`;
+        } else {
+          statusDiv.className = "status disconnected";
+          statusDiv.textContent = `Status: ${status}`;
+        }
+      }
+
+      function connectSocket() {
+        log("🔌 Attempting to connect to WebSocket...");
+        updateStatus("Connecting...");
+
+        try {
+          socket = io("http://localhost:3001", {
+            withCredentials: true,
+            transports: ["websocket", "polling"],
+          });
+
+          socket.on("connect", () => {
+            log("✅ WebSocket connected successfully!");
+            updateStatus("Connected");
+            isAuthenticated = false;
+          });
+
+          socket.on("disconnect", () => {
+            log("❌ WebSocket disconnected");
+            updateStatus("Disconnected");
+            isAuthenticated = false;
+          });
+
+          socket.on("connect_error", (error) => {
+            log(`❌ WebSocket connection error: ${error.message}`);
+            updateStatus("Connection Failed");
+            isAuthenticated = false;
+          });
+
+          // Listen for delivery broadcasts
+          socket.on("delivery-broadcast", (delivery) => {
+            log(`🚚 RECEIVED DELIVERY BROADCAST: ${delivery.deliveryCode}`);
+            log(`   Pickup: ${delivery.pickupLocation}`);
+            log(`   Delivery: ${delivery.deliveryLocation}`);
+            log(`   Fee: ${delivery.fee}₺`);
+            log(`   Driver Earning: ${delivery.driverEarning}₺`);
+          });
+
+          // Listen for notifications
+          socket.on("new-notification", (notification) => {
+            log(
+              `🔔 RECEIVED NOTIFICATION: ${notification.title} - ${notification.message}`
+            );
+          });
+
+          // Listen for toast notifications
+          socket.on("toast-notification", (toast) => {
+            log(
+              `🍞 RECEIVED TOAST: ${toast.toastTitle} - ${toast.toastMessage}`
+            );
+          });
+
+          // Listen for authentication confirmation
+          socket.on("authentication-confirmed", (data) => {
+            log("✅ Authentication confirmed by server!");
+            log(`   User ID: ${data.userId}`);
+            log(`   User Type: ${data.userType}`);
+            log(`   Rooms: ${data.rooms.join(", ")}`);
+            isAuthenticated = true;
+            updateStatus("Connected", true);
+          });
+        } catch (error) {
+          log(`❌ Error creating socket connection: ${error.message}`);
+          updateStatus("Error");
+        }
+      }
+
+      function authenticateSocket() {
+        if (!socket || !socket.connected) {
+          log("❌ Cannot authenticate - WebSocket not connected");
+          return;
+        }
+
+        log("🔐 Authenticating socket connection...");
+        socket.emit("authenticate", {
+          userId: "6890dc5a98ce5bc39c4e92b7", // Your driver ID
+          userType: "driver",
+        });
+
+        log("⏳ Waiting for server authentication confirmation...");
+      }
+
+      function testDeliveryBroadcast() {
+        if (!socket || !socket.connected) {
+          log("❌ Cannot test broadcast - WebSocket not connected");
+          return;
+        }
+
+        if (!isAuthenticated) {
+          log("❌ Cannot test broadcast - Socket not authenticated");
+          return;
+        }
+
+        log("📤 Testing delivery broadcast...");
+
+        // Make API call to create a test delivery
+        fetch("http://localhost:3001/api/admin/deliveries", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer test-token-for-demo",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            pickupLocation: "Test Pickup Location",
+            deliveryLocation: "Test Delivery Location",
+            customerName: "Test Customer",
+            customerPhone: "+9056789766",
+            fee: 150,
+            paymentMethod: "cash",
+            estimatedTime: "2025-08-19T20:30:00.000Z",
+            notes: "Test delivery for socket broadcast",
+            priority: "normal",
+            useAutoBroadcast: true,
+            broadcastRadius: 10,
+            broadcastDuration: 120,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              log("✅ Test delivery created successfully");
+              log(`   Delivery ID: ${data.data.delivery.id}`);
+              log(`   Eligible Drivers: ${data.data.delivery.eligibleDrivers}`);
+              log("   Waiting for broadcast notification...");
+            } else {
+              log(`❌ Failed to create test delivery: ${data.error}`);
+            }
+          })
+          .catch((error) => {
+            log(`❌ Error creating test delivery: ${error.message}`);
+          });
+      }
+
+      function clearLog() {
+        logDiv.innerHTML = "";
+      }
+
+      // Auto-connect on page load
+      window.onload = () => {
+        log("🚀 Socket authentication test page loaded");
+        log('1. Click "Connect WebSocket" to establish connection');
+        log('2. Click "Authenticate Socket" to authenticate');
+        log(
+          '3. Click "Test Delivery Broadcast" to test real-time notifications'
+        );
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Connection Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 5px;
+      }
+      .connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .connecting {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+      }
+      #log {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔌 WebSocket Connection Test</h1>
+
+    <div id="status" class="status disconnected">Status: Disconnected</div>
+
+    <button onclick="connectSocket()">Connect WebSocket</button>
+    <button onclick="disconnectSocket()">Disconnect WebSocket</button>
+    <button onclick="sendTestNotification()">Send Test Notification</button>
+    <button onclick="clearLog()">Clear Log</button>
+
+    <h3>Connection Log:</h3>
+    <div id="log"></div>
+
+    <script>
+      let socket = null;
+      const statusDiv = document.getElementById("status");
+      const logDiv = document.getElementById("log");
+
+      function log(message) {
+        const timestamp = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+        console.log(message);
+      }
+
+      function updateStatus(connected) {
+        statusDiv.className = connected
+          ? "status connected"
+          : "status disconnected";
+        statusDiv.textContent = `Status: ${connected ? "Connected" : "Disconnected"}`;
+      }
+
+      function connectSocket() {
+        log("🔌 Attempting to connect to WebSocket...");
+        updateStatus(false);
+
+        try {
+          socket = io("http://localhost:3001", {
+            withCredentials: true,
+            transports: ["websocket", "polling"],
+          });
+
+          socket.on("connect", () => {
+            log("✅ WebSocket connected successfully!");
+            updateStatus(true);
+
+            // Authenticate the connection
+            log("🔐 Authenticating socket connection...");
+            socket.emit("authenticate", {
+              userId: "test-user-123",
+              userType: "driver",
+            });
+          });
+
+          socket.on("disconnect", () => {
+            log("❌ WebSocket disconnected");
+            updateStatus(false);
+          });
+
+          socket.on("connect_error", (error) => {
+            log(`❌ WebSocket connection error: ${error.message}`);
+            updateStatus(false);
+          });
+
+          socket.on("new-notification", (notification) => {
+            log(
+              `🔔 Received notification: ${notification.title} - ${notification.message}`
+            );
+          });
+
+          socket.on("delivery-broadcast", (delivery) => {
+            log(`🚚 Received delivery broadcast: ${delivery.deliveryCode}`);
+          });
+
+          socket.on("toast-notification", (toast) => {
+            log(
+              `🍞 Received toast notification: ${toast.toastTitle} - ${toast.toastMessage}`
+            );
+          });
+
+          socket.on("notification", (data) => {
+            log(`📢 Received general notification: ${data.message}`);
+          });
+        } catch (error) {
+          log(`❌ Error creating socket connection: ${error.message}`);
+          updateStatus(false);
+        }
+      }
+
+      function disconnectSocket() {
+        if (socket) {
+          socket.disconnect();
+          log("🔌 WebSocket disconnected manually");
+          updateStatus(false);
+        }
+      }
+
+      function sendTestNotification() {
+        if (!socket || !socket.connected) {
+          log("❌ Cannot send notification - WebSocket not connected");
+          return;
+        }
+
+        log("📤 Sending test notification...");
+        socket.emit("notification", {
+          target: "drivers",
+          message: "Test notification from WebSocket test page",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      function clearLog() {
+        logDiv.innerHTML = "";
+      }
+
+      // Auto-connect on page load
+      window.onload = () => {
+        log("🚀 WebSocket test page loaded");
+        log('Click "Connect WebSocket" to test connection');
+      };
+    </script>
+  </body>
+</html>

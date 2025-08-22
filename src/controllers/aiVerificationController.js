@@ -276,7 +276,7 @@ class AIVerificationController {
     // Helper methods for AI processing (simulated for now)
     static async performDocumentClassification(documentUrl, expectedType) {
         // Simulate AI classification
-        const types = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'];
+        const types = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
         const detectedType = types[Math.floor(Math.random() * types.length)];
 
         return {
@@ -292,7 +292,7 @@ class AIVerificationController {
             studentId: 'Student ID: 20230001\nName: John Doe\nUniversity: EMU',
             identityCard: 'ID Card\nName: John Doe\nDOB: 1995-01-01\nID: TR123456789',
             universityEnrollment: 'Enrollment Certificate\nStudent: John Doe\nProgram: Computer Science',
-            transportationLicense: 'Driver License\nName: John Doe\nLicense: TR123456789',
+
             profilePhoto: 'Profile Photo - No text to extract'
         };
 

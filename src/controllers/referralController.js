@@ -8,17 +8,21 @@ class ReferralController {
     static generateReferralCode = catchAsync(async (req, res) => {
         const { driverId } = req.params;
 
-        const result = await ReferralService.generateReferralCode(driverId);
+        try {
+            const result = await ReferralService.generateInvitationReferralCode(driverId);
 
-        if (!result.success) {
-            return errorResponse(res, result.error, 400);
+            if (result.success) {
+                return successResponse(res, {
+                    referralCode: result.referralCode,
+                    driverName: result.driverName,
+                    message: result.message
+                }, 'Referral code generated successfully');
+            } else {
+                return errorResponse(res, result.error, 400);
+            }
+        } catch (error) {
+            return errorResponse(res, error, 500);
         }
-
-        return successResponse(res, {
-            referralCode: result.referralCode,
-            driverName: result.driverName,
-            message: 'Referral code generated successfully'
-        });
     });
 
     /**

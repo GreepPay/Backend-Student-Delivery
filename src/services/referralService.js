@@ -6,6 +6,57 @@ const SocketService = require('./socketService');
 
 class ReferralService {
     /**
+     * Generate an invitation referral code for a driver
+     */
+    static async generateInvitationReferralCode(driverId) {
+        try {
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                throw new Error('Driver not found');
+            }
+
+            const InvitationReferralCode = require('../models/InvitationReferralCode');
+
+            // Check if driver already has an active invitation referral code
+            const existingCode = await InvitationReferralCode.findOne({
+                referrer: driverId,
+                status: 'active'
+            });
+
+            if (existingCode) {
+                return {
+                    success: true,
+                    referralCode: existingCode.referralCode,
+                    driverName: driver.name,
+                    message: 'Existing active referral code found'
+                };
+            }
+
+            // Generate new referral code
+            const referralCode = await InvitationReferralCode.generateReferralCode(driverId, driver.name);
+
+            // Create the invitation referral code record
+            const invitationReferralCode = new InvitationReferralCode({
+                referrer: driverId,
+                referralCode: referralCode,
+                expiresAt: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // 30 days from now
+            });
+
+            await invitationReferralCode.save();
+
+            return {
+                success: true,
+                referralCode,
+                driverName: driver.name,
+                message: 'Invitation referral code generated successfully'
+            };
+        } catch (error) {
+            console.error('Error generating invitation referral code:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Generate a unique referral code for a driver
      */
     static async generateReferralCode(driverId) {

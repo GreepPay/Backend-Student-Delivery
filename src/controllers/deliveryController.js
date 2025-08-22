@@ -387,7 +387,7 @@ class DeliveryController {
         }
     });
 
-    // Update delivery status
+    // Update delivery status with automatic earnings calculation
     static updateDeliveryStatus = catchAsync(async (req, res) => {
         const { id } = req.params;
         const { status, notes } = req.body;
@@ -429,12 +429,24 @@ class DeliveryController {
 
             await delivery.save();
 
+            // Automatically calculate earnings if delivery is completed
+            let earningsResult = null;
+            if (status === 'delivered' && !delivery.earningsCalculated) {
+                try {
+                    earningsResult = await DeliveryController.calculateDriverEarnings(id);
+                } catch (earningsError) {
+                    console.error('Failed to calculate earnings:', earningsError);
+                    // Don't fail the status update if earnings calculation fails
+                }
+            }
+
             successResponse(res, {
                 delivery: {
                     id: delivery._id,
                     status: delivery.status,
                     updatedAt: delivery.updatedAt
-                }
+                },
+                earnings: earningsResult
             }, 'Delivery status updated successfully');
         } catch (error) {
             errorResponse(res, error, 500);
@@ -471,6 +483,83 @@ class DeliveryController {
             errorResponse(res, error, 500);
         }
     });
+
+    // Calculate and update driver earnings for completed delivery
+    static async calculateDriverEarnings(deliveryId) {
+        try {
+            const delivery = await Delivery.findById(deliveryId)
+                .populate('assignedTo', 'totalEarnings totalDeliveries rating');
+
+            if (!delivery) {
+                throw new Error('Delivery not found');
+            }
+
+            if (delivery.status !== 'delivered') {
+                throw new Error('Delivery must be completed to calculate earnings');
+            }
+
+            // Calculate base earnings using EarningsService
+            const earningsCalculation = await EarningsService.calculateEarnings(delivery.fee);
+            const baseEarnings = earningsCalculation.driverEarning;
+
+            // Calculate bonuses
+            let totalBonus = 0;
+
+            // Priority bonus (10% for high priority)
+            if (delivery.priority === 'high') {
+                totalBonus += Math.round(baseEarnings * 0.1);
+            }
+
+            // Speed bonus (5% if completed within estimated time)
+            if (delivery.estimatedTime && delivery.deliveredAt && delivery.assignedAt) {
+                const estimatedMinutes = delivery.estimatedTime;
+                const actualMinutes = (delivery.deliveredAt - delivery.assignedAt) / (1000 * 60);
+
+                if (actualMinutes <= estimatedMinutes) {
+                    totalBonus += Math.round(baseEarnings * 0.05);
+                }
+            }
+
+            // Rating bonus (2% for 5-star rating)
+            if (delivery.assignedTo && delivery.assignedTo.rating >= 4.5) {
+                totalBonus += Math.round(baseEarnings * 0.02);
+            }
+
+            const totalEarnings = baseEarnings + totalBonus;
+
+            // Update delivery with calculated earnings
+            delivery.driverEarning = totalEarnings;
+            delivery.earningsCalculated = true;
+            delivery.earningsCalculationDate = new Date();
+            await delivery.save();
+
+            // Update driver's total earnings and delivery count
+            const driver = delivery.assignedTo;
+            driver.totalEarnings = (driver.totalEarnings || 0) + totalEarnings;
+            driver.totalDeliveries = (driver.totalDeliveries || 0) + 1;
+            await driver.save();
+
+            console.log(`💰 Earnings calculated for delivery ${delivery.deliveryCode}: ${totalEarnings}₺ (Base: ${baseEarnings}₺, Bonus: ${totalBonus}₺)`);
+
+            return {
+                success: true,
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                baseEarnings,
+                totalBonus,
+                totalEarnings,
+                driverId: driver._id,
+                driverTotalEarnings: driver.totalEarnings,
+                driverTotalDeliveries: driver.totalDeliveries
+            };
+
+        } catch (error) {
+            console.error('Error calculating driver earnings:', error);
+            throw error;
+        }
+    }
+
+
 }
 
 module.exports = DeliveryController;

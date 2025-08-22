@@ -199,11 +199,17 @@ router.get('/drivers',
 );
 
 // Driver invitation system
+router.get('/drivers/referral-codes',
+    requirePermission('manage_drivers'),
+    AdminController.getAvailableReferralCodes
+);
+
 router.post('/drivers/invite',
     requirePermission('manage_drivers'),
     validate(Joi.object({
         name: Joi.string().required().min(2).max(50),
-        email: Joi.string().email().required()
+        email: Joi.string().email().required(),
+        referralCode: Joi.string().optional().trim().uppercase()
     })),
     AdminController.inviteDriver
 );
@@ -292,7 +298,7 @@ router.put('/drivers/:driverId/documents/:documentType',
     requirePermission('manage_drivers'),
     validateParams(Joi.object({
         driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
     })),
     validate(Joi.object({
         status: Joi.string().valid('pending', 'verified', 'rejected').required(),
@@ -355,12 +361,6 @@ router.post('/drivers/bulk',
 router.get('/drivers/area/:area',
     requirePermission('manage_drivers'),
     DriverController.getDriversByArea
-);
-
-router.get('/leaderboard',
-    requirePermission('view_analytics'),
-    validateQuery(schemas.analyticsQuery),
-    DriverController.getLeaderboard
 );
 
 // Delivery management
@@ -521,7 +521,7 @@ router.get('/documents',
     requirePermission('manage_drivers'),
     validateQuery(Joi.object({
         status: Joi.string().valid('pending', 'verified', 'rejected', 'ai_processing', 'all').default('pending'),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense'),
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'),
         page: Joi.number().integer().min(1).default(1),
         limit: Joi.number().integer().min(1).max(100).default(20)
     })),
@@ -911,6 +911,85 @@ router.delete('/management/earnings-configurations/:id',
 router.get('/management/statistics',
     superAdminOnly,
     AdminManagementController.getAdminStatistics
+);
+
+// ========================================
+// LEADERBOARD ROUTES
+// ========================================
+
+// Get leaderboard data
+router.get('/leaderboard',
+    requirePermission('view_analytics'),
+    validateQuery(Joi.object({
+        category: Joi.string().valid('overall', 'delivery', 'earnings', 'referrals', 'rating', 'speed').default('overall'),
+        period: Joi.string().valid('today', 'week', 'thisWeek', 'month', 'monthly', 'currentPeriod', 'year', 'all-time', 'allTime', 'custom').default('month'),
+        limit: Joi.number().integer().min(1).max(100).default(20)
+    })),
+    AdminController.getLeaderboard
+);
+
+// Get leaderboard categories
+router.get('/leaderboard/categories',
+    requirePermission('view_analytics'),
+    AdminController.getLeaderboardCategories
+);
+
+// ========================================
+// UTILITY ROUTES (FOR TESTING/DEBUGGING)
+// ========================================
+
+// Manually assign driver to delivery (for testing)
+router.post('/utility/assign-delivery/:deliveryId',
+    requirePermission('manage_deliveries'),
+    validateParams(Joi.object({
+        deliveryId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    })),
+    validateBody(Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
+    })),
+    async (req, res) => {
+        try {
+            const { deliveryId } = req.params;
+            const { driverId } = req.body;
+
+            const Delivery = require('../models/Delivery');
+            const Driver = require('../models/Driver');
+
+            // Check if delivery exists
+            const delivery = await Delivery.findById(deliveryId);
+            if (!delivery) {
+                return res.status(404).json({ error: 'Delivery not found' });
+            }
+
+            // Check if driver exists
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                return res.status(404).json({ error: 'Driver not found' });
+            }
+
+            // Update delivery
+            const updatedDelivery = await Delivery.findByIdAndUpdate(
+                deliveryId,
+                {
+                    assignedTo: driverId,
+                    status: 'accepted',
+                    broadcastStatus: 'completed',
+                    acceptedAt: new Date(),
+                    acceptedBy: driverId
+                },
+                { new: true }
+            ).populate('assignedTo', 'name email');
+
+            res.json({
+                success: true,
+                message: 'Delivery assigned successfully',
+                delivery: updatedDelivery
+            });
+        } catch (error) {
+            console.error('Error assigning delivery:', error);
+            res.status(500).json({ error: 'Failed to assign delivery' });
+        }
+    }
 );
 
 module.exports = router;

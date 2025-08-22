@@ -133,6 +133,7 @@ const driverSchema = new mongoose.Schema({
                 default: 'pending'
             },
             uploadDate: Date,
+            documentUrl: String,
             rejectionReason: String,
             verificationDate: Date,
             aiVerification: {
@@ -151,6 +152,7 @@ const driverSchema = new mongoose.Schema({
                 default: 'pending'
             },
             uploadDate: Date,
+            documentUrl: String,
             rejectionReason: String,
             verificationDate: Date,
             aiVerification: {
@@ -169,6 +171,7 @@ const driverSchema = new mongoose.Schema({
                 default: 'pending'
             },
             uploadDate: Date,
+            documentUrl: String,
             rejectionReason: String,
             verificationDate: Date,
             aiVerification: {
@@ -187,6 +190,7 @@ const driverSchema = new mongoose.Schema({
                 default: 'pending'
             },
             uploadDate: Date,
+            documentUrl: String,
             rejectionReason: String,
             verificationDate: Date,
             aiVerification: {
@@ -198,24 +202,7 @@ const driverSchema = new mongoose.Schema({
                 confidence: Number
             }
         },
-        transportationLicense: {
-            status: {
-                type: String,
-                enum: ['pending', 'verified', 'rejected'],
-                default: 'pending'
-            },
-            uploadDate: Date,
-            rejectionReason: String,
-            verificationDate: Date,
-            aiVerification: {
-                classification: Object,
-                extractedText: Object,
-                faceDetection: Object,
-                authenticity: Object,
-                fraudDetection: Object,
-                confidence: Number
-            }
-        }
+
     },
     // University information
     university: {
@@ -474,13 +461,17 @@ driverSchema.virtual('verificationStatus').get(function () {
         };
     }
 
+    const isDocumentsVerified = this.documents?.studentId?.status === 'verified' &&
+        this.documents?.profilePhoto?.status === 'verified' &&
+        this.documents?.identityCard?.status === 'verified' &&
+        this.documents?.universityEnrollment?.status === 'verified';
+
     const verificationCount = [
         this.isEmailVerified,
-        this.isPhoneVerified,
-        this.isDocumentVerified
+        isDocumentsVerified
     ].filter(Boolean).length;
 
-    if (verificationCount === 3) {
+    if (verificationCount === 2) {
         return {
             status: 'verified',
             message: 'Account fully verified'
@@ -525,7 +516,6 @@ driverSchema.virtual('verificationProgress').get(function () {
 
         // Verification status
         this.isEmailVerified,
-        this.isPhoneVerified,
 
         // Document verification
         this.documents?.studentId?.status === 'verified',
@@ -534,10 +524,7 @@ driverSchema.virtual('verificationProgress').get(function () {
         this.documents?.universityEnrollment?.status === 'verified'
     ];
 
-    // Add transportation license check if needed for certain vehicle types
-    if (['car', 'motorcycle'].includes(this.transportationType)) {
-        checks.push(this.documents?.transportationLicense?.status === 'verified');
-    }
+
 
     const completedChecks = checks.filter(Boolean).length;
     return Math.round((completedChecks / checks.length) * 100);
@@ -562,16 +549,17 @@ driverSchema.virtual('profileCompletion').get(function () {
         },
         verification: {
             email: this.isEmailVerified,
-            phone: this.isPhoneVerified,
-            documents: this.isDocumentVerified
+            documents: this.documents?.studentId?.status === 'verified' &&
+                this.documents?.profilePhoto?.status === 'verified' &&
+                this.documents?.identityCard?.status === 'verified' &&
+                this.documents?.universityEnrollment?.status === 'verified'
         },
         documents: {
             studentId: this.documents?.studentId?.status === 'verified',
             profilePhoto: this.documents?.profilePhoto?.status === 'verified' || (this.profilePicture && this.profilePicture.includes('cloudinary.com')),
             identityCard: this.documents?.identityCard?.status === 'verified',
             universityEnrollment: this.documents?.universityEnrollment?.status === 'verified',
-            transportationLicense: ['car', 'motorcycle'].includes(this.transportationType) ?
-                this.documents?.transportationLicense?.status === 'verified' : true
+
         }
     };
 
@@ -597,7 +585,7 @@ driverSchema.virtual('profileCompletion').get(function () {
         sections: sectionCompletions,
         isComplete: totalComplete === totalPossible,
         readyForDeliveries: this.isActive && !this.isSuspended &&
-            sectionCompletions.verification.percentage >= 67 && // 2/3 verified
+            sectionCompletions.verification.percentage >= 100 && // 2/2 verified (email + documents)
             sectionCompletions.personalDetails.percentage >= 75 && // 3/4 complete
             sectionCompletions.studentInfo.percentage === 100 // All student info
     };
@@ -653,12 +641,7 @@ driverSchema.virtual('accountStatus').get(function () {
                 uploadDate: this.documents?.identityCard?.uploadDate,
                 rejectionReason: this.documents?.identityCard?.rejectionReason
             },
-            transportationLicense: {
-                status: this.documents?.transportationLicense?.status || 'pending',
-                uploadDate: this.documents?.transportationLicense?.uploadDate,
-                rejectionReason: this.documents?.transportationLicense?.rejectionReason,
-                required: ['car', 'motorcycle'].includes(this.transportationType)
-            }
+
         },
         completion: profileCompletion,
         deliveries: {

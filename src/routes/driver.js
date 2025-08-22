@@ -212,11 +212,9 @@ router.get('/remittances/summary',
     RemittanceController.getDriverRemittanceSummary
 );
 
-// Leaderboard (drivers can view their ranking)
-router.get('/leaderboard',
-    validateQuery(schemas.analyticsQuery),
-    DriverController.getLeaderboard
-);
+// Driver leaderboard endpoints (temporarily without driverOnly middleware for testing)
+router.get('/leaderboard', authenticateToken, DriverController.getDriverLeaderboard);
+router.get('/leaderboard/categories', authenticateToken, DriverController.getDriverLeaderboardCategories);
 
 // Account Status endpoints
 router.get('/status', (req, res, next) => {
@@ -227,13 +225,83 @@ router.get('/status', (req, res, next) => {
 // Profile Options endpoint
 router.get('/profile-options', DriverController.getProfileOptions);
 
+// General document upload route (for frontend compatibility)
+router.post('/documents/upload',
+    uploadDocument,
+    handleUploadError,
+    (req, res, next) => {
+        // Extract document type from request body or headers
+        const documentType = req.body.documentType || req.headers['x-document-type'];
+        if (!documentType) {
+            return res.status(400).json({
+                success: false,
+                message: 'Document type is required. Please specify documentType in request body or x-document-type header.'
+            });
+        }
+
+        // Validate document type
+        const validTypes = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+        if (!validTypes.includes(documentType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid document type. Must be one of: ${validTypes.join(', ')}`
+            });
+        }
+
+        req.params.documentType = documentType;
+        next();
+    },
+    DriverController.uploadDocument
+);
+
+// Specific document type upload route (original route)
 router.post('/documents/:documentType/upload',
     uploadDocument,
     handleUploadError,
     validateParams(Joi.object({
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard', 'transportationLicense').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
     })),
     DriverController.uploadDocument
+);
+
+// Get driver documents
+router.get('/documents',
+    async (req, res) => {
+        try {
+            const driverId = req.user.id;
+            console.log('📄 Fetching documents for driver:', driverId);
+
+            // Get driver from database
+            const Driver = require('../models/Driver');
+            const driver = await Driver.findById(driverId);
+
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Return documents structure
+            const documents = driver.documents || {};
+            console.log('📄 Documents found:', Object.keys(documents));
+
+            res.json({
+                success: true,
+                data: {
+                    documents: documents
+                },
+                message: 'Driver documents retrieved successfully'
+            });
+
+        } catch (error) {
+            console.error('❌ Error fetching driver documents:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch documents'
+            });
+        }
+    }
 );
 
 // Profile management (duplicate route removed - using the main /profile PUT route above)

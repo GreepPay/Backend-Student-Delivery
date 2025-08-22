@@ -19,6 +19,7 @@ router.get('/leaderboard', ReferralController.getReferralLeaderboard);
 router.get('/admin/all', authenticateToken, adminOnly, ReferralController.getAllReferrals);
 router.get('/admin/statistics', authenticateToken, adminOnly, ReferralController.getReferralStatistics);
 router.get('/admin/analytics', authenticateToken, adminOnly, ReferralController.getReferralAnalytics);
+router.get('/admin/referrals', authenticateToken, adminOnly, ReferralController.getAllReferrals); // Add this specific route
 router.get('/admin/:referralId', authenticateToken, adminOnly, ReferralController.getReferralDetails);
 
 module.exports = router;

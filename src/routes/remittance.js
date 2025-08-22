@@ -72,4 +72,22 @@ router.get('/payment-structure',
     RemittanceController.getPaymentStructure
 );
 
+// Cancel remittance (admin only)
+router.put('/:remittanceId/cancel',
+    adminOnly,
+    RemittanceController.cancelRemittance
+);
+
+// Complete remittance (admin only)
+router.put('/:remittanceId/complete',
+    adminOnly,
+    RemittanceController.completeRemittance
+);
+
+// Bulk generate remittances (admin only)
+router.post('/bulk-generate',
+    adminOnly,
+    RemittanceController.bulkGenerateRemittances
+);
+
 module.exports = router; 

@@ -137,6 +137,121 @@ class AuthController {
         }
     });
 
+    // Get profile by user ID (for admin access)
+    static getProfileById = catchAsync(async (req, res) => {
+        const { userId } = req.params;
+        const { user } = req;
+
+        try {
+            // Only allow admins to access other users' profiles
+            if (user.userType !== 'admin') {
+                return res.status(403).json({
+                    success: false,
+                    error: 'Access denied. Only admins can view other users\' profiles.'
+                });
+            }
+
+            let userData;
+
+            // Try to find as driver first
+            const Driver = require('../models/Driver');
+            let driver = await Driver.findById(userId).select('-__v');
+            
+            if (driver) {
+                // Get computed data
+                const profileCompletion = driver.profileCompletion;
+                const accountStatus = driver.accountStatus;
+
+                // Structure response exactly as frontend expects
+                userData = {
+                    // Basic driver data
+                    id: driver._id,
+                    fullName: driver.fullName || driver.name,
+                    email: driver.email,
+                    phone: driver.phone,
+                    studentId: driver.studentId,
+                    area: driver.area,
+                    transportationType: driver.transportationType,
+                    university: driver.university,
+                    address: driver.address,
+                    profilePicture: driver.profilePicture,
+                    isActive: driver.isActive,
+                    joinedAt: driver.joinedAt,
+
+                    // Frontend expected structure
+                    profile: {
+                        personalDetails: {
+                            fullName: driver.fullName || driver.name,
+                            email: driver.email,
+                            phone: driver.phone,
+                            address: driver.address || ""
+                        },
+                        studentInfo: {
+                            studentId: driver.studentId,
+                            university: driver.university
+                        },
+                        transportation: {
+                            method: driver.transportationType,
+                            area: driver.area
+                        }
+                    },
+
+                    completion: {
+                        overall: profileCompletion?.overall || 0,
+                        sections: profileCompletion?.sections || {},
+                        isComplete: profileCompletion?.isComplete || false,
+                        readyForDeliveries: profileCompletion?.readyForDeliveries || false
+                    },
+
+                    verification: {
+                        studentVerified: accountStatus?.verification?.studentVerified || false,
+                        profileComplete: accountStatus?.verification?.profileComplete || false,
+                        activeDeliveryPartner: accountStatus?.verification?.activeDeliveryPartner || false
+                    },
+
+                    // Keep original fields for backward compatibility
+                    memberSince: driver.memberSince,
+                    verificationStatus: driver.verificationStatus,
+                    completionRate: driver.completionRate,
+                    averageEarningsPerDelivery: driver.averageEarningsPerDelivery,
+                    profileCompletion: driver.profileCompletion,
+                    accountStatus: driver.accountStatus,
+                    verificationProgress: driver.verificationProgress
+                };
+            } else {
+                // Try to find as admin
+                const Admin = require('../models/Admin');
+                const admin = await Admin.findById(userId).select('-__v');
+                
+                if (admin) {
+                    userData = {
+                        id: admin._id,
+                        name: admin.name,
+                        email: admin.email,
+                        role: admin.role,
+                        permissions: admin.permissions,
+                        isActive: admin.isActive,
+                        createdAt: admin.createdAt
+                    };
+                }
+            }
+
+            if (!userData) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+
+            successResponse(res, {
+                user: userData,
+                userType: driver ? 'driver' : 'admin'
+            }, 'Profile retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
     // Get current user profile
     static getProfile = catchAsync(async (req, res) => {
         const { user } = req;

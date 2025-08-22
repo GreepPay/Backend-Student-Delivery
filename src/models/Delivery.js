@@ -49,6 +49,13 @@ const deliverySchema = new mongoose.Schema({
         min: [0, 'Driver earning cannot be negative'],
         default: 0
     },
+    earningsCalculated: {
+        type: Boolean,
+        default: false
+    },
+    earningsCalculationDate: {
+        type: Date
+    },
     companyEarning: {
         type: Number,
         min: [0, 'Company earning cannot be negative'],

@@ -8,13 +8,35 @@ class DriverInvitationService {
      * Create a new driver invitation
      */
     static async createInvitation(invitationData) {
-        const { email, name, invitedBy } = invitationData;
+        const { email, name, invitedBy, referralCode } = invitationData;
 
         try {
             // Check if driver already exists
             const existingDriver = await Driver.findOne({ email: email.toLowerCase() });
             if (existingDriver) {
                 throw new Error('Driver with this email already exists');
+            }
+
+            // Validate referral code if provided
+            let referrerDriver = null;
+            if (referralCode) {
+                const InvitationReferralCode = require('../models/InvitationReferralCode');
+                const referralCodeRecord = await InvitationReferralCode.findOne({
+                    referralCode: referralCode.toUpperCase(),
+                    status: 'active'
+                }).populate('referrer', 'name email');
+
+                if (!referralCodeRecord) {
+                    throw new Error('Invalid or expired referral code');
+                }
+
+                // Check if code is expired
+                if (referralCodeRecord.isExpired()) {
+                    await referralCodeRecord.markAsExpired();
+                    throw new Error('Referral code has expired');
+                }
+
+                referrerDriver = referralCodeRecord.referrer;
             }
 
             // Check if there's already a pending invitation for this email
@@ -45,6 +67,7 @@ class DriverInvitationService {
                 name,
                 invitationToken,
                 invitedBy,
+                referralCode: referralCode ? referralCode.toUpperCase() : undefined,
                 expiresAt
             });
 
@@ -72,6 +95,22 @@ class DriverInvitationService {
         try {
             const activationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/driver/activate/${invitation.invitationToken}`;
 
+            // Get referral information if referral code was used
+            let referralInfo = null;
+            if (invitation.referralCode) {
+                const InvitationReferralCode = require('../models/InvitationReferralCode');
+                const referralCodeRecord = await InvitationReferralCode.findOne({
+                    referralCode: invitation.referralCode
+                }).populate('referrer', 'name email');
+
+                if (referralCodeRecord) {
+                    referralInfo = {
+                        referrerName: referralCodeRecord.referrer.name,
+                        referralCode: invitation.referralCode
+                    };
+                }
+            }
+
             const emailData = {
                 to: invitation.email,
                 subject: 'Welcome to Greep SDS - Complete Your Driver Account Setup',
@@ -80,7 +119,8 @@ class DriverInvitationService {
                     activationLink,
                     supportWhatsApp: '+90 533 832 97 85',
                     supportInstagram: '@greepit',
-                    expiresAt: invitation.expiresAt.toLocaleDateString()
+                    expiresAt: invitation.expiresAt.toLocaleDateString(),
+                    referralInfo
                 }
             };
 
@@ -142,6 +182,29 @@ class DriverInvitationService {
             });
 
             await driver.save();
+
+            // Handle referral code if present
+            if (invitation.referralCode) {
+                try {
+                    const InvitationReferralCode = require('../models/InvitationReferralCode');
+
+                    // Find the referral code record
+                    const referralCodeRecord = await InvitationReferralCode.findOne({
+                        referralCode: invitation.referralCode,
+                        status: 'active'
+                    });
+
+                    if (referralCodeRecord) {
+                        // Mark the referral code as used
+                        await referralCodeRecord.markAsUsed(driver._id);
+
+                        console.log(`Referral code ${invitation.referralCode} marked as used by driver ${driver._id}`);
+                    }
+                } catch (referralError) {
+                    console.error('Error processing referral during driver activation:', referralError);
+                    // Don't fail driver activation if referral processing fails
+                }
+            }
 
             // Mark invitation as activated
             await invitation.markAsActivated();

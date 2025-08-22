@@ -115,19 +115,7 @@ Return a JSON response with:
 - reason: string explaining the result
 - details: object with specific findings`,
 
-            transportationLicense: `Analyze this transportation license. Check for:
-1. License type and category
-2. Valid expiration date
-3. Driver information
-4. Issuing authority
-5. License authenticity
-6. Required endorsements
 
-Return a JSON response with:
-- isValid: boolean
-- confidence: number (0-100)
-- reason: string explaining the result
-- details: object with specific findings`
         };
 
         const prompt = prompts[documentType] || prompts.studentId;
@@ -276,17 +264,7 @@ Return a JSON response with:
                     authenticity: 'verified'
                 }
             },
-            transportationLicense: {
-                isValid: true,
-                confidence: 87,
-                reason: 'Transportation license appears valid with proper endorsements',
-                analysis: {
-                    licenseType: 'Class B',
-                    expirationDate: '2026-03-20',
-                    endorsements: 'none required',
-                    validity: 'confirmed'
-                }
-            }
+
         };
 
         const result = mockResults[documentType] || mockResults.studentId;

@@ -37,6 +37,8 @@ router.post('/refresh-token', AuthController.refreshToken);
 
 router.get('/profile', AuthController.getProfile);
 
+router.get('/profile/:userId', AuthController.getProfileById);
+
 router.put('/profile',
     (req, res, next) => {
         // Use appropriate schema based on user type

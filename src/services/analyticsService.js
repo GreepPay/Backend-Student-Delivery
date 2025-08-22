@@ -28,11 +28,20 @@ class AnalyticsService {
             }
 
             // Get deliveries in the period
+            console.log('🔍 AnalyticsService: Querying deliveries with:', {
+                assignedTo: driverId,
+                status: 'delivered',
+                deliveredAt: { $gte: startDate, $lte: endDate },
+                period: period
+            });
+
             const deliveries = await Delivery.find({
                 assignedTo: driverId,
                 status: 'delivered',
                 deliveredAt: { $gte: startDate, $lte: endDate }
             }).sort({ deliveredAt: 1 });
+
+            console.log('🔍 AnalyticsService: Found', deliveries.length, 'deliveries for period:', period);
 
             // Calculate basic stats
             const totalDeliveries = deliveries.length;
@@ -635,6 +644,10 @@ class AnalyticsService {
                         name: '$driver.fullName',
                         email: '$driver.email',
                         area: '$driver.area',
+                        profilePicture: '$driver.profilePicture',
+                        profileImage: '$driver.profileImage',
+                        avatar: '$driver.avatar',
+                        image: '$driver.image',
                         totalDeliveries: 1,
                         totalEarnings: 1,
                         avgDeliveryTime: { $round: ['$avgDeliveryTime', 1] },
@@ -819,6 +832,10 @@ class AnalyticsService {
                         _id: 1,
                         name: '$driver.fullName',
                         area: '$driver.area',
+                        profilePicture: '$driver.profilePicture',
+                        profileImage: '$driver.profileImage',
+                        avatar: '$driver.avatar',
+                        image: '$driver.image',
                         totalDeliveries: 1,
                         totalEarnings: 1,
                         totalRevenue: 1,

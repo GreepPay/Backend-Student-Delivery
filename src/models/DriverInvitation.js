@@ -27,6 +27,11 @@ const driverInvitationSchema = new mongoose.Schema({
         ref: 'Admin',
         required: true
     },
+    referralCode: {
+        type: String,
+        trim: true,
+        uppercase: true
+    },
     invitedAt: {
         type: Date,
         default: Date.now
