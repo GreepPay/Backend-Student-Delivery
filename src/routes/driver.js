@@ -324,4 +324,61 @@ router.put('/deactivate',
     DriverController.deactivateAccount
 );
 
+// Manual earnings calculation endpoint
+router.post('/earnings/calculate',
+    async (req, res) => {
+        try {
+            const driverId = req.user.id;
+            const { deliveryId } = req.body;
+
+            if (!deliveryId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Delivery ID is required'
+                });
+            }
+
+            // Verify driver owns this delivery
+            const delivery = await require('../models/Delivery').findById(deliveryId);
+            if (!delivery) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Delivery not found'
+                });
+            }
+
+            if (delivery.assignedTo.toString() !== driverId) {
+                return res.status(403).json({
+                    success: false,
+                    error: 'You can only calculate earnings for your own deliveries'
+                });
+            }
+
+            // Check if delivery is completed
+            if (delivery.status !== 'delivered') {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Earnings can only be calculated for completed deliveries'
+                });
+            }
+
+            // Calculate earnings using the controller method
+            const earningsResult = await DeliveryController.calculateDriverEarnings(deliveryId);
+
+            res.json({
+                success: true,
+                message: 'Earnings calculated successfully',
+                data: earningsResult
+            });
+
+        } catch (error) {
+            console.error('Error calculating earnings:', error);
+            res.status(500).json({
+                success: false,
+                error: error.message || 'Failed to calculate earnings'
+            });
+        }
+    }
+);
+
 module.exports = router;

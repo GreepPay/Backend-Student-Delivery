@@ -286,6 +286,8 @@ const schemas = {
             'today',
             'week',
             'thisWeek',      // Added for frontend compatibility
+            'thisMonth',     // Added for frontend compatibility
+            'thisYear',      // Added for frontend compatibility
             'month',
             'monthly',       // Added for frontend compatibility
             'currentPeriod', // Added for frontend compatibility

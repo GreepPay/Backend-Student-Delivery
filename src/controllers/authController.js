@@ -156,7 +156,7 @@ class AuthController {
             // Try to find as driver first
             const Driver = require('../models/Driver');
             let driver = await Driver.findById(userId).select('-__v');
-            
+
             if (driver) {
                 // Get computed data
                 const profileCompletion = driver.profileCompletion;
@@ -222,7 +222,7 @@ class AuthController {
                 // Try to find as admin
                 const Admin = require('../models/Admin');
                 const admin = await Admin.findById(userId).select('-__v');
-                
+
                 if (admin) {
                     userData = {
                         id: admin._id,
@@ -247,6 +247,55 @@ class AuthController {
                 user: userData,
                 userType: driver ? 'driver' : 'admin'
             }, 'Profile retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Update specific user profile (admin only)
+    static updateProfileById = catchAsync(async (req, res) => {
+        const { userId } = req.params;
+        const updateData = req.body;
+
+        try {
+            // Check if user exists and get user type
+            const Driver = require('../models/Driver');
+            const Admin = require('../models/Admin');
+
+            let user = await Driver.findById(userId);
+            let userType = 'driver';
+
+            if (!user) {
+                user = await Admin.findById(userId);
+                userType = 'admin';
+            }
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'User not found'
+                });
+            }
+
+            // Update the user
+            const updatedUser = await (userType === 'driver' ? Driver : Admin)
+                .findByIdAndUpdate(
+                    userId,
+                    updateData,
+                    { new: true, runValidators: true }
+                ).select('-__v');
+
+            if (!updatedUser) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Failed to update user'
+                });
+            }
+
+            successResponse(res, {
+                user: updatedUser,
+                userType
+            }, 'Profile updated successfully');
         } catch (error) {
             errorResponse(res, error, 500);
         }

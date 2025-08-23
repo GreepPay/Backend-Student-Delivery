@@ -37,7 +37,19 @@ router.post('/refresh-token', AuthController.refreshToken);
 
 router.get('/profile', AuthController.getProfile);
 
-router.get('/profile/:userId', AuthController.getProfileById);
+router.get('/profile/:userId',
+    (req, res, next) => {
+        // Add admin-only middleware for this route
+        if (req.user.userType !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Admin access required'
+            });
+        }
+        next();
+    },
+    AuthController.getProfileById
+);
 
 router.put('/profile',
     (req, res, next) => {
@@ -60,6 +72,38 @@ router.put('/profile',
         next();
     },
     AuthController.updateProfile
+);
+
+// Admin route to update specific user profile
+router.put('/profile/:userId',
+    (req, res, next) => {
+        // Admin-only middleware for this route
+        if (req.user.userType !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Admin access required'
+            });
+        }
+
+        // Use appropriate schema based on user type
+        const schema = req.user?.userType === 'admin' ? schemas.updateAdminProfile : schemas.updateDriverProfile;
+        const { error } = schema.validate(req.body, { abortEarly: false });
+
+        if (error) {
+            const errors = error.details.map(detail => ({
+                field: detail.path.join('.'),
+                message: detail.message
+            }));
+
+            return res.status(400).json({
+                success: false,
+                error: 'Validation failed',
+                details: errors
+            });
+        }
+        next();
+    },
+    AuthController.updateProfileById
 );
 
 router.post('/change-password', AuthController.changePassword);

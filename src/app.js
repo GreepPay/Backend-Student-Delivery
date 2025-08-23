@@ -102,7 +102,9 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/profile', authRoutes); // Alias for backward compatibility
+
+// Profile route alias
+app.use('/api/profile', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/delivery', deliveryRoutes);

@@ -527,11 +527,11 @@ class DeliveryController {
 
             const totalEarnings = baseEarnings + totalBonus;
 
-            // Update delivery with calculated earnings
+            // Update delivery with calculated earnings (skip validation for existing records)
             delivery.driverEarning = totalEarnings;
             delivery.earningsCalculated = true;
             delivery.earningsCalculationDate = new Date();
-            await delivery.save();
+            await delivery.save({ validateBeforeSave: false });
 
             // Update driver's total earnings and delivery count
             const driver = delivery.assignedTo;
