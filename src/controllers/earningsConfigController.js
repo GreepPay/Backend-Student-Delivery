@@ -189,6 +189,14 @@ class EarningsConfigController {
     // Bulk update existing deliveries with new earnings rules
     static bulkUpdateDeliveries = catchAsync(async (req, res) => {
         try {
+            // Check if req.body exists
+            if (!req.body) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Request body is missing'
+                });
+            }
+
             const { deliveryIds, configId } = req.body;
             const { user } = req;
 

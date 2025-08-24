@@ -801,7 +801,9 @@ class AdminController {
         const { user } = req;
 
         // Check permissions
-        if (!user.permissions.includes('view_analytics') && user.role !== 'super_admin') {
+        if (!user.permissions.includes('view_analytics') &&
+            !user.permissions.includes('all') &&
+            user.role !== 'super_admin') {
             return res.status(403).json({
                 success: false,
                 error: 'Analytics permission required'
@@ -866,7 +868,9 @@ class AdminController {
         const { user } = req;
 
         // Check permissions
-        if (!user.permissions.includes('manage_drivers') && user.role !== 'super_admin') {
+        if (!user.permissions.includes('manage_drivers') &&
+            !user.permissions.includes('all') &&
+            user.role !== 'super_admin') {
             return res.status(403).json({
                 success: false,
                 error: 'Driver management permission required'

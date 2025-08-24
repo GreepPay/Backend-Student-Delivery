@@ -102,7 +102,9 @@ adminSchema.pre('save', async function (next) {
 
 // Instance method to check permissions
 adminSchema.methods.hasPermission = function (permission) {
-    return this.permissions.includes(permission) || this.role === 'super_admin';
+    return this.permissions.includes(permission) ||
+        this.permissions.includes('all') ||
+        this.role === 'super_admin';
 };
 
 // Instance method to check if user is super admin

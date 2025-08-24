@@ -115,6 +115,10 @@ class RemittanceService {
             // Calculate due date
             const dueDate = moment().add(dueDateDays, 'days').toDate();
 
+            // Generate reference number
+            const count = await Remittance.countDocuments();
+            const referenceNumber = `REM-${Date.now()}-${count + 1}`;
+
             // Create remittance record
             const remittance = new Remittance({
                 driverId: driver._id,
@@ -124,6 +128,7 @@ class RemittanceService {
                 amount: calculation.remittanceAmount,
                 status: 'pending',
                 paymentMethod: 'cash',
+                referenceNumber: referenceNumber,
                 description: `Cash remittance for ${calculation.deliveryCount} deliveries`,
                 handledBy: admin._id,
                 handledByName: admin.name,
@@ -357,7 +362,7 @@ class RemittanceService {
                 completedRemittances: remittances.filter(r => r.status === 'completed').length,
                 totalAmount: remittances.reduce((sum, r) => sum + r.amount, 0),
                 totalPaid: remittances.filter(r => r.status === 'completed')
-                    .reduce((sum, r) => sum + (r.actualPaymentAmount || 0), 0),
+                    .reduce((sum, r) => sum + (r.actualPaymentAmount || r.amount || 0), 0),
                 totalPending: remittances.filter(r => r.status === 'pending')
                     .reduce((sum, r) => sum + r.amount, 0),
                 totalOverdue: remittances.filter(r => r.status === 'overdue')
@@ -425,7 +430,6 @@ class RemittanceService {
                 overdueRemittances,
                 completedRemittances,
                 totalAmount,
-                totalPaid,
                 totalPending,
                 totalOverdue
             ] = await Promise.all([
@@ -437,10 +441,6 @@ class RemittanceService {
                     { $group: { _id: null, total: { $sum: '$amount' } } }
                 ]),
                 Remittance.aggregate([
-                    { $match: { status: 'completed' } },
-                    { $group: { _id: null, total: { $sum: '$actualPaymentAmount' } } }
-                ]),
-                Remittance.aggregate([
                     { $match: { status: 'pending' } },
                     { $group: { _id: null, total: { $sum: '$amount' } } }
                 ]),
@@ -450,13 +450,19 @@ class RemittanceService {
                 ])
             ]);
 
+            // Calculate totalPaid manually
+            const completedRemittancesList = await Remittance.find({ status: 'completed' });
+            const totalPaid = completedRemittancesList.reduce((sum, r) => {
+                return sum + (r.actualPaymentAmount || r.amount || 0);
+            }, 0);
+
             return {
                 totalRemittances,
                 pendingRemittances,
                 overdueRemittances,
                 completedRemittances,
                 totalAmount: totalAmount[0]?.total || 0,
-                totalPaid: totalPaid[0]?.total || 0,
+                totalPaid: totalPaid,
                 totalPending: totalPending[0]?.total || 0,
                 totalOverdue: totalOverdue[0]?.total || 0,
                 completionRate: totalRemittances > 0 ?

@@ -206,7 +206,10 @@ const requirePermission = (permission) => {
             });
         }
 
-        if (req.user.role === 'super_admin' || req.user.permissions.includes(permission)) {
+        // Check for super admin role or specific permission
+        if (req.user.role === 'super_admin' ||
+            req.user.permissions.includes(permission) ||
+            req.user.permissions.includes('all')) {
             return next();
         }
 

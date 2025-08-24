@@ -559,6 +559,18 @@ class DeliveryController {
         }
     }
 
+    // Debug endpoint to check delivery broadcast status
+    static getDeliveryBroadcastStatus = catchAsync(async (req, res) => {
+        const { id } = req.params;
+
+        try {
+            const status = await BroadcastService.getDeliveryBroadcastStatus(id);
+
+            successResponse(res, status, 'Delivery broadcast status retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
 
 }
 

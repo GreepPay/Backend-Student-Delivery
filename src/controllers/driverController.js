@@ -32,7 +32,33 @@ class DriverController {
 
             const total = await Driver.countDocuments(query);
 
-            paginatedResponse(res, drivers, { page: parseInt(page), limit: parseInt(limit), total });
+            // Add computed status field to each driver
+            const driversWithStatus = drivers.map(driver => {
+                const driverObj = driver.toObject();
+
+                // Compute status based on driver's state
+                let status = 'offline';
+                if (driverObj.isSuspended) {
+                    status = 'suspended';
+                } else if (driverObj.isOnline && driverObj.isActive) {
+                    status = 'online';
+                } else if (driverObj.isActive) {
+                    status = 'offline';
+                } else {
+                    status = 'inactive';
+                }
+
+                // Add lastActive field using lastLogin or updatedAt
+                const lastActive = driverObj.lastLogin || driverObj.updatedAt || driverObj.createdAt;
+
+                return {
+                    ...driverObj,
+                    status: status,
+                    lastActive: lastActive
+                };
+            });
+
+            paginatedResponse(res, driversWithStatus, { page: parseInt(page), limit: parseInt(limit), total });
         } catch (error) {
             errorResponse(res, error, 500);
         }
@@ -848,14 +874,15 @@ class DriverController {
 
     // Get driver leaderboard
     static getLeaderboard = catchAsync(async (req, res) => {
-        const { period = 'month', limit = 10 } = req.query;
+        const { period = 'allTime', limit = 10 } = req.query;
 
         try {
-            const leaderboard = await AnalyticsService.getDriverLeaderboard(period, limit);
+            // For consistency with admin leaderboard, always use all-time data
+            const leaderboard = await AnalyticsService.getDriverLeaderboard('allTime', limit);
 
             successResponse(res, {
                 leaderboard,
-                period,
+                period: 'allTime', // Always return all-time period for consistency
                 generatedAt: new Date().toISOString()
             }, 'Driver leaderboard retrieved successfully');
         } catch (error) {
@@ -1233,6 +1260,7 @@ class DriverController {
 
             const [
                 currentPeriodAnalytics,
+                thisMonthAnalytics,
                 todayAnalytics,
                 weekAnalytics,
                 recentDeliveries,
@@ -1245,6 +1273,17 @@ class DriverController {
                 AnalyticsService.getDriverAnalytics(driverId, period).then(result => {
                     console.log('📊 Current period analytics result:', {
                         period,
+                        totalDeliveries: result.stats.totalDeliveries,
+                        totalEarnings: result.stats.totalEarnings,
+                        startDate: result.startDate?.toISOString(),
+                        endDate: result.endDate?.toISOString()
+                    });
+                    return result;
+                }),
+
+                // This month's analytics (always get month data)
+                AnalyticsService.getDriverAnalytics(driverId, 'month').then(result => {
+                    console.log('📊 This month analytics result:', {
                         totalDeliveries: result.stats.totalDeliveries,
                         totalEarnings: result.stats.totalEarnings,
                         startDate: result.startDate?.toISOString(),
@@ -1363,11 +1402,11 @@ class DriverController {
                     averagePerDay: weekAnalytics.stats.averagePerDay,
                     completionRate: weekAnalytics.stats.completionRate
                 },
-                currentPeriod: {
-                    deliveries: currentPeriodAnalytics.stats.totalDeliveries,
-                    earnings: currentPeriodAnalytics.stats.totalEarnings,
-                    averagePerDay: currentPeriodAnalytics.stats.averagePerDay,
-                    completionRate: currentPeriodAnalytics.stats.completionRate
+                thisMonth: {
+                    deliveries: thisMonthAnalytics.stats.totalDeliveries,
+                    earnings: thisMonthAnalytics.stats.totalEarnings,
+                    averagePerDay: thisMonthAnalytics.stats.averagePerDay,
+                    completionRate: thisMonthAnalytics.stats.completionRate
                 },
                 allTime: (() => {
                     const stats = totalStats[0] || {
@@ -1390,7 +1429,7 @@ class DriverController {
             console.log('📊 QuickStats calculated:', {
                 today: quickStats.today,
                 thisWeek: quickStats.thisWeek,
-                currentPeriod: quickStats.currentPeriod,
+                thisMonth: quickStats.thisMonth,
                 allTime: quickStats.allTime
             });
 
@@ -1931,7 +1970,7 @@ class DriverController {
     // Add this method to the DriverController class
     static async getDriverLeaderboard(req, res) {
         try {
-            const { category = 'overall', period = 'month', limit = 10 } = req.query;
+            const { category = 'overall', period = 'allTime', limit = 10 } = req.query;
 
             // Validate category
             const validCategories = ['overall', 'delivery', 'earnings', 'referrals', 'rating'];
@@ -1951,174 +1990,155 @@ class DriverController {
 
             switch (period) {
                 case 'today':
-                    startDate.setHours(0, 0, 0, 0);
+                    // Use local timezone for today's calculations
+                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
                     break;
                 case 'week':
                 case 'thisWeek':
-                    startDate.setDate(now.getDate() - now.getDay());
-                    startDate.setHours(0, 0, 0, 0);
+                    // Start of current week (Sunday)
+                    const dayOfWeek = now.getDay();
+                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek, 0, 0, 0, 0);
                     break;
                 case 'month':
                 case 'monthly':
                 case 'currentPeriod':
-                    startDate.setDate(1);
-                    startDate.setHours(0, 0, 0, 0);
+                    // Start of current month
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
                     break;
                 case 'year':
-                    startDate.setMonth(0, 1);
-                    startDate.setHours(0, 0, 0, 0);
+                    // Start of current year
+                    startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
                     break;
                 case 'all-time':
                 case 'allTime':
                     startDate = new Date(0); // Beginning of time
                     break;
                 default:
-                    startDate.setDate(1);
-                    startDate.setHours(0, 0, 0, 0);
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
             }
 
-            console.log(`🏆 Leaderboard: Period ${period}, Start date: ${startDate.toISOString()}, End date: ${now.toISOString()}`);
+            // Get all active drivers
+            const drivers = await Driver.find({
+                isActive: true,
+                isSuspended: false
+            }).lean();
 
-            // Get drivers with period-specific stats using aggregation
-            console.log(`🏆 Leaderboard: Starting aggregation for ${period} period...`);
-            const drivers = await Driver.aggregate([
-                {
-                    $lookup: {
-                        from: 'deliveries',
-                        localField: '_id',
-                        foreignField: 'assignedTo',
-                        pipeline: [
-                            {
-                                $match: {
-                                    $or: [
-                                        { assignedAt: { $gte: startDate, $lte: now } },
-                                        { createdAt: { $gte: startDate, $lte: now } },
-                                        { deliveredAt: { $gte: startDate, $lte: now } }
-                                    ]
-                                }
-                            }
-                        ],
-                        as: 'periodDeliveries'
-                    }
-                },
-                {
-                    $addFields: {
-                        periodStats: {
-                            totalDeliveries: { $size: '$periodDeliveries' },
-                            totalEarnings: {
-                                $sum: {
-                                    $map: {
-                                        input: '$periodDeliveries',
-                                        as: 'delivery',
-                                        in: { $ifNull: ['$$delivery.driverEarning', 0] }
-                                    }
-                                }
-                            },
-                            completedDeliveries: {
-                                $size: {
-                                    $filter: {
-                                        input: '$periodDeliveries',
-                                        as: 'delivery',
-                                        cond: { $eq: ['$$delivery.status', 'delivered'] }
-                                    }
-                                }
-                            }
+            if (!drivers || drivers.length === 0) {
+                return successResponse(res, {
+                    leaderboard: [],
+                    period,
+                    total: 0,
+                    limit: parseInt(limit)
+                }, 'No drivers found for leaderboard');
+            }
+
+            // Calculate stats for each driver based on the selected period
+            const driversWithPoints = await Promise.all(drivers.map(async (driver) => {
+                let totalDeliveries, totalEarnings, completedDeliveries, completionRate, avgDeliveryTime;
+                const rating = driver.rating || 4.5;
+                const totalReferrals = driver.referralPoints || 0;
+
+                if (period === 'allTime' || period === 'all-time') {
+                    // Use stored statistics for all-time data
+                    totalDeliveries = driver.totalDeliveries || 0;
+                    totalEarnings = driver.totalEarnings || 0;
+                    completedDeliveries = driver.completedDeliveries || 0;
+                    completionRate = driver.completionRate || 0;
+                    avgDeliveryTime = 25; // Placeholder
+                } else {
+                    // Calculate period-specific data from delivery records
+                    // First, let's try a simpler query to debug
+                    const deliveryQuery = {
+                        assignedTo: driver._id,
+                        status: 'delivered',
+                        deliveredAt: { $gte: startDate, $lte: now }
+                    };
+
+                    const deliveries = await Delivery.find(deliveryQuery);
+
+                    // If no deliveries found with deliveredAt, try createdAt
+                    if (deliveries.length === 0) {
+                        const createdAtQuery = {
+                            assignedTo: driver._id,
+                            status: 'delivered',
+                            createdAt: { $gte: startDate, $lte: now }
+                        };
+
+                        const createdAtDeliveries = await Delivery.find(createdAtQuery);
+
+                        // Use whichever query found more deliveries
+                        if (createdAtDeliveries.length > deliveries.length) {
+                            deliveries.push(...createdAtDeliveries);
                         }
                     }
-                },
-                {
-                    $project: {
-                        name: 1,
-                        email: 1,
-                        phone: 1,
-                        rating: 1,
-                        completionRate: 1,
-                        avgDeliveryTime: 1,
-                        totalReferrals: 1,
-                        referralPoints: 1,
-                        profilePicture: 1,
-                        isOnline: 1,
-                        lastActive: 1,
-                        periodStats: 1
-                    }
-                },
-                {
-                    $sort: { 'periodStats.totalDeliveries': -1, 'periodStats.totalEarnings': -1 }
-                },
-                {
-                    $limit: parseInt(limit) || 10
+
+                    // Calculate period-specific stats
+                    totalDeliveries = deliveries.length;
+                    totalEarnings = deliveries.reduce((sum, delivery) => sum + (delivery.driverEarning || 0), 0);
+                    completedDeliveries = deliveries.length; // All delivered deliveries in period
+                    completionRate = totalDeliveries > 0 ? 100 : 0; // All are completed since we filtered by 'delivered'
+                    avgDeliveryTime = totalDeliveries > 0 ? 25 : 0; // Placeholder calculation
+
+
                 }
-            ]);
 
-            console.log(`🏆 Leaderboard: Aggregation completed. Found ${drivers.length} drivers with period data.`);
-            console.log(`🏆 Leaderboard: Sample driver data:`, drivers.length > 0 ? {
-                name: drivers[0].name,
-                periodStats: drivers[0].periodStats,
-                totalDeliveries: drivers[0].periodStats?.totalDeliveries || 0,
-                totalEarnings: drivers[0].periodStats?.totalEarnings || 0
-            } : 'No drivers found');
-
-            // Calculate points for each driver based on category using period-specific stats
-            const driversWithPoints = drivers.map(driver => {
                 let points = 0;
-                const periodStats = driver.periodStats || {};
 
+                // Use the same point calculation formula as admin leaderboard
                 switch (category) {
+                    case 'overall':
+                        points = (totalDeliveries * 10) +
+                            (totalEarnings * 0.1) +
+                            (rating * 10) +
+                            (totalReferrals * 20) +
+                            (completionRate * 0.5);
+                        break;
                     case 'delivery':
-                        points = (periodStats.totalDeliveries || 0) * 10;
+                        points = totalDeliveries * 10;
                         break;
                     case 'earnings':
-                        points = Math.round((periodStats.totalEarnings || 0) * 0.3);
+                        points = totalEarnings * 0.1;
                         break;
                     case 'referrals':
-                        points = (driver.totalReferrals || 0) * 20; // Referrals are lifetime
+                        points = totalReferrals * 20;
                         break;
                     case 'rating':
-                        points = Math.round((driver.rating || 0) * 50); // Rating is lifetime
+                        points = rating * 10;
                         break;
-                    default: // overall
-                        points = Math.round(
-                            (periodStats.totalDeliveries || 0) * 10 +
-                            (periodStats.totalEarnings || 0) * 0.3 +
-                            (driver.rating || 0) * 50 +
-                            (driver.totalReferrals || 0) * 20
-                        );
+                    case 'speed':
+                        points = avgDeliveryTime ? (100 - avgDeliveryTime) : 50;
+                        break;
+                    default:
+                        points = (totalDeliveries * 10) + (totalEarnings * 0.1);
                 }
 
                 return {
                     _id: driver._id,
-                    name: driver.name,
+                    name: driver.name || driver.fullName || 'Unknown Driver',
                     email: driver.email,
                     phone: driver.phone,
-                    totalDeliveries: periodStats.totalDeliveries || 0,
-                    totalEarnings: periodStats.totalEarnings || 0,
-                    rating: driver.rating || 0,
-                    completionRate: driver.completionRate || 0,
-                    avgDeliveryTime: driver.avgDeliveryTime || 0,
-                    totalReferrals: driver.totalReferrals || 0,
-                    referralPoints: driver.referralPoints || 0,
+                    totalDeliveries,
+                    totalEarnings,
+                    rating: parseFloat(rating.toFixed(1)),
+                    completionRate: parseFloat(completionRate.toFixed(1)),
+                    avgDeliveryTime,
+                    totalReferrals,
+                    referralPoints: totalReferrals,
                     isOnline: driver.isOnline || false,
-                    lastActive: driver.lastActive,
-                    points: points,
-                    profilePicture: driver.profilePicture
+                    lastActive: driver.lastLogin || driver.updatedAt,
+                    points: Math.round(points),
+                    profilePicture: driver.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name || 'Driver')}&background=random`
                 };
-            });
+            }));
 
             // Sort by points in descending order
             driversWithPoints.sort((a, b) => b.points - a.points);
 
-            console.log(`🏆 Leaderboard: Final result - ${driversWithPoints.length} drivers with points:`,
-                driversWithPoints.map(d => ({
-                    name: d.name,
-                    totalDeliveries: d.totalDeliveries,
-                    totalEarnings: d.totalEarnings,
-                    points: d.points
-                }))
-            );
+
 
             return successResponse(res, {
                 leaderboard: driversWithPoints,
-                period: period,
+                period: period, // Return the actual requested period
                 generatedAt: new Date().toISOString()
             }, 'Driver leaderboard retrieved successfully');
 

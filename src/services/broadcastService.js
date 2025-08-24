@@ -137,12 +137,33 @@ class BroadcastService {
                 throw new Error('Delivery not found');
             }
 
-            if (delivery.broadcastStatus !== 'broadcasting') {
-                throw new Error('Delivery is not currently broadcasting');
+            // Check broadcast status and provide specific error messages
+            switch (delivery.broadcastStatus) {
+                case 'not_started':
+                    throw new Error('Delivery broadcast has not started yet');
+                case 'accepted':
+                    throw new Error('Delivery has already been accepted by another driver');
+                case 'expired':
+                    throw new Error('Delivery broadcast has expired');
+                case 'manual_assignment':
+                    throw new Error('This delivery was manually assigned and cannot be accepted through broadcast');
+                case 'broadcasting':
+                    // This is the correct status, continue with acceptance
+                    break;
+                default:
+                    throw new Error(`Delivery is in an invalid broadcast status: ${delivery.broadcastStatus}`);
             }
 
             if (delivery.assignedTo) {
                 throw new Error('Delivery already assigned');
+            }
+
+            // Check if broadcast has expired
+            if (delivery.broadcastEndTime && new Date() > delivery.broadcastEndTime) {
+                // Update status to expired
+                delivery.broadcastStatus = 'expired';
+                await delivery.save();
+                throw new Error('Delivery broadcast has expired');
             }
 
             // Accept the delivery
@@ -353,6 +374,33 @@ class BroadcastService {
             return delivery;
         } catch (error) {
             console.error('Error manually assigning delivery:', error);
+            throw error;
+        }
+    }
+
+    // Get delivery broadcast status (for debugging)
+    static async getDeliveryBroadcastStatus(deliveryId) {
+        try {
+            const delivery = await Delivery.findById(deliveryId);
+            if (!delivery) {
+                throw new Error('Delivery not found');
+            }
+
+            const now = new Date();
+            const isExpired = delivery.broadcastEndTime && now > delivery.broadcastEndTime;
+
+            return {
+                deliveryId: delivery._id,
+                broadcastStatus: delivery.broadcastStatus,
+                broadcastStartTime: delivery.broadcastStartTime,
+                broadcastEndTime: delivery.broadcastEndTime,
+                isExpired,
+                assignedTo: delivery.assignedTo,
+                status: delivery.status,
+                canBeAccepted: delivery.broadcastStatus === 'broadcasting' && !isExpired && !delivery.assignedTo
+            };
+        } catch (error) {
+            console.error('Error getting delivery broadcast status:', error);
             throw error;
         }
     }

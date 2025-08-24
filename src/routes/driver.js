@@ -209,7 +209,7 @@ router.get('/remittances',
 router.get('/remittances/summary',
     authenticateToken,
     validateUserContext,
-    RemittanceController.getDriverRemittanceSummary
+    RemittanceController.getDriverRemittances
 );
 
 // Driver leaderboard endpoints (temporarily without driverOnly middleware for testing)
@@ -329,6 +329,15 @@ router.post('/earnings/calculate',
     async (req, res) => {
         try {
             const driverId = req.user.id;
+
+            // Check if req.body exists and has deliveryId
+            if (!req.body) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Request body is missing'
+                });
+            }
+
             const { deliveryId } = req.body;
 
             if (!deliveryId) {
