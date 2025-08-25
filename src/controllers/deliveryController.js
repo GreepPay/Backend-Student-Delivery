@@ -141,21 +141,20 @@ class DeliveryController {
                         });
                     }
                 }
-                result = { eligibleDrivers: [] };
+                result = { eligibleDrivers: 0 };
             }
 
             successResponse(res, {
-                delivery: {
-                    id: updatedDelivery._id,
-                    pickupLocation: updatedDelivery.pickupLocation,
-                    deliveryLocation: updatedDelivery.deliveryLocation,
-                    fee: updatedDelivery.fee,
-                    status: updatedDelivery.status,
-                    broadcastStatus: updatedDelivery.broadcastStatus,
-                    broadcastEndTime: updatedDelivery.broadcastEndTime,
-                    assignedTo: updatedDelivery.assignedTo,
-                    eligibleDrivers: result.eligibleDrivers
-                },
+                id: updatedDelivery._id,
+                deliveryCode: updatedDelivery.deliveryCode,
+                pickupLocation: updatedDelivery.pickupLocation,
+                deliveryLocation: updatedDelivery.deliveryLocation,
+                fee: updatedDelivery.fee,
+                status: updatedDelivery.status,
+                broadcastStatus: updatedDelivery.broadcastStatus,
+                broadcastEndTime: updatedDelivery.broadcastEndTime,
+                assignedTo: updatedDelivery.assignedTo,
+                eligibleDrivers: result.eligibleDrivers,
                 earnings: {
                     driverEarning: earnings.driverEarning,
                     companyEarning: earnings.companyEarning
@@ -435,7 +434,7 @@ class DeliveryController {
                 try {
                     const EarningsValidationService = require('../services/earningsValidationService');
                     const earningsCheck = await EarningsValidationService.ensureDeliveryEarningsCalculated(id);
-                    
+
                     if (earningsCheck.success) {
                         earningsResult = earningsCheck;
                         console.log(`💰 Earnings calculated for delivery ${delivery.deliveryCode}: ${earningsCheck.earnings}₺`);
@@ -464,10 +463,10 @@ class DeliveryController {
                 try {
                     const EarningsValidationService = require('../services/earningsValidationService');
                     const validation = await EarningsValidationService.validateDriverEarnings(delivery.assignedTo);
-                    
+
                     if (!validation.isValid) {
                         console.warn(`⚠️ Driver earnings validation failed for driver ${delivery.assignedTo}:`, validation);
-                        
+
                         // Auto-fix the earnings if validation fails
                         const fixResult = await EarningsValidationService.fixDriverEarnings(delivery.assignedTo);
                         if (fixResult.success) {
