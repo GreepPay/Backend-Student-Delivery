@@ -2431,6 +2431,50 @@ class AdminController {
         }
     };
 
+    // Validate and fix all driver earnings
+    static validateAllDriverEarnings = catchAsync(async (req, res) => {
+        try {
+            const EarningsValidationService = require('../services/earningsValidationService');
+            const validationResults = await EarningsValidationService.validateAllDriversEarnings();
+
+            successResponse(res, validationResults, 'Driver earnings validation completed');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Fix specific driver earnings
+    static fixDriverEarnings = catchAsync(async (req, res) => {
+        const { driverId } = req.params;
+
+        try {
+            const EarningsValidationService = require('../services/earningsValidationService');
+            const fixResult = await EarningsValidationService.fixDriverEarnings(driverId);
+
+            if (fixResult.success) {
+                successResponse(res, fixResult, 'Driver earnings fixed successfully');
+            } else {
+                errorResponse(res, { error: fixResult.error }, 400);
+            }
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Validate specific driver earnings
+    static validateDriverEarnings = catchAsync(async (req, res) => {
+        const { driverId } = req.params;
+
+        try {
+            const EarningsValidationService = require('../services/earningsValidationService');
+            const validationResult = await EarningsValidationService.validateDriverEarnings(driverId);
+
+            successResponse(res, validationResult, 'Driver earnings validation completed');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
 }
 
 module.exports = AdminController;

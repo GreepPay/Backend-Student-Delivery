@@ -676,6 +676,25 @@ router.get('/earnings/reports/download/:reportId',
     AdminController.downloadEarningsReport
 );
 
+// Earnings Validation and Fix Routes
+router.get('/earnings/validate-all',
+    requirePermission('manage_earnings'),
+    AdminController.validateAllDriverEarnings
+);
+
+router.get('/earnings/validate/:driverId',
+    requirePermission('manage_earnings'),
+    validateParams(paramSchemas.driverId),
+    AdminController.validateDriverEarnings
+);
+
+router.post('/earnings/fix/:driverId',
+    requirePermission('manage_earnings'),
+    validateParams(paramSchemas.driverId),
+    AdminController.fixDriverEarnings
+);
+);
+
 // 7. Get Report Status
 router.get('/earnings/reports/status/:reportId',
     requirePermission('view_analytics'),

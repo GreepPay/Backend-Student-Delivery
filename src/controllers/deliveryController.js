@@ -429,14 +429,57 @@ class DeliveryController {
 
             await delivery.save();
 
-            // Automatically calculate earnings if delivery is completed
+            // SAFEGUARD 1: Always calculate earnings when a delivery is marked as "delivered"
             let earningsResult = null;
-            if (status === 'delivered' && !delivery.earningsCalculated) {
+            if (status === 'delivered') {
                 try {
-                    earningsResult = await DeliveryController.calculateDriverEarnings(id);
+                    const EarningsValidationService = require('../services/earningsValidationService');
+                    const earningsCheck = await EarningsValidationService.ensureDeliveryEarningsCalculated(id);
+                    
+                    if (earningsCheck.success) {
+                        earningsResult = earningsCheck;
+                        console.log(`💰 Earnings calculated for delivery ${delivery.deliveryCode}: ${earningsCheck.earnings}₺`);
+                    } else {
+                        console.error(`❌ Failed to calculate earnings for delivery ${delivery.deliveryCode}:`, earningsCheck.error);
+                    }
                 } catch (earningsError) {
                     console.error('Failed to calculate earnings:', earningsError);
                     // Don't fail the status update if earnings calculation fails
+                }
+            }
+
+            // SAFEGUARD 2: Use EarningsService.updateDriverTotalEarnings() to recalculate totals
+            if (status === 'delivered' && delivery.assignedTo) {
+                try {
+                    const EarningsService = require('../services/earningsService');
+                    await EarningsService.updateDriverTotalEarnings(delivery.assignedTo);
+                    console.log(`🔄 Updated total earnings for driver ${delivery.assignedTo}`);
+                } catch (totalEarningsError) {
+                    console.error('Failed to update driver total earnings:', totalEarningsError);
+                }
+            }
+
+            // SAFEGUARD 3: Validate that driver totals match the sum of their delivered deliveries
+            if (status === 'delivered' && delivery.assignedTo) {
+                try {
+                    const EarningsValidationService = require('../services/earningsValidationService');
+                    const validation = await EarningsValidationService.validateDriverEarnings(delivery.assignedTo);
+                    
+                    if (!validation.isValid) {
+                        console.warn(`⚠️ Driver earnings validation failed for driver ${delivery.assignedTo}:`, validation);
+                        
+                        // Auto-fix the earnings if validation fails
+                        const fixResult = await EarningsValidationService.fixDriverEarnings(delivery.assignedTo);
+                        if (fixResult.success) {
+                            console.log(`✅ Auto-fix applied for driver ${delivery.assignedTo}`);
+                        } else {
+                            console.error(`❌ Failed to auto-fix driver earnings for driver ${delivery.assignedTo}:`, fixResult.error);
+                        }
+                    } else {
+                        console.log(`✅ Driver earnings validation passed for driver ${delivery.assignedTo}`);
+                    }
+                } catch (validationError) {
+                    console.error('Failed to validate driver earnings:', validationError);
                 }
             }
 
