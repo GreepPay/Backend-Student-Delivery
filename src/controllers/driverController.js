@@ -585,7 +585,7 @@ class DriverController {
                 try {
                     const EarningsValidationService = require('../services/earningsValidationService');
                     const earningsCheck = await EarningsValidationService.ensureDeliveryEarningsCalculated(deliveryId);
-                    
+
                     if (earningsCheck.success) {
                         earningsResult = earningsCheck;
                         console.log(`💰 Earnings calculated for delivery ${delivery.deliveryCode}: ${earningsCheck.earnings}₺`);
@@ -614,10 +614,10 @@ class DriverController {
                 try {
                     const EarningsValidationService = require('../services/earningsValidationService');
                     const validation = await EarningsValidationService.validateDriverEarnings(delivery.assignedTo._id);
-                    
+
                     if (!validation.isValid) {
                         console.warn(`⚠️ Driver earnings validation failed for ${delivery.assignedTo.name}:`, validation);
-                        
+
                         // Auto-fix the earnings if validation fails
                         const fixResult = await EarningsValidationService.fixDriverEarnings(delivery.assignedTo._id);
                         if (fixResult.success) {

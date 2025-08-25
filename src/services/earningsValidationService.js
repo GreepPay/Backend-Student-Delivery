@@ -75,7 +75,7 @@ class EarningsValidationService {
     static async fixDriverEarnings(driverId) {
         try {
             const validation = await this.validateDriverEarnings(driverId);
-            
+
             if (validation.isValid) {
                 return {
                     success: true,
