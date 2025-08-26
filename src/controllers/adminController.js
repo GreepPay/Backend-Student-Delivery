@@ -7,6 +7,7 @@ const EmailService = require('../services/emailService');
 const DriverInvitationService = require('../services/driverInvitationService');
 const PDFDocument = require('pdfkit');
 const { catchAsync, successResponse, errorResponse, paginatedResponse } = require('../middleware/errorHandler');
+const { calculateProfitMargin } = require('../utils/helpers');
 
 class AdminController {
     // Get admin dashboard overview
@@ -1210,6 +1211,15 @@ class AdminController {
                 ...updateData
             };
 
+            // Check if all required documents are now verified
+            const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
+                driver.documents?.profilePhoto?.status === 'verified' &&
+                driver.documents?.identityCard?.status === 'verified' &&
+                driver.documents?.universityEnrollment?.status === 'verified';
+
+            // Update isDocumentVerified field
+            driver.isDocumentVerified = allDocumentsVerified;
+
             // Mark as modified for nested objects
             driver.markModified('documents');
             await driver.save();
@@ -1282,6 +1292,15 @@ class AdminController {
                             updatedDriver.documents[documentType].verifiedAt = new Date();
                             updatedDriver.documents[documentType].verifiedBy = user.id;
                             updatedDriver.documents[documentType].rejectionReason = result.isValid ? undefined : result.reason;
+
+                            // Check if all required documents are now verified
+                            const allDocumentsVerified = updatedDriver.documents?.studentId?.status === 'verified' &&
+                                updatedDriver.documents?.profilePhoto?.status === 'verified' &&
+                                updatedDriver.documents?.identityCard?.status === 'verified' &&
+                                updatedDriver.documents?.universityEnrollment?.status === 'verified';
+
+                            // Update isDocumentVerified field
+                            updatedDriver.isDocumentVerified = allDocumentsVerified;
 
                             updatedDriver.markModified('documents');
                             await updatedDriver.save();
@@ -1918,7 +1937,7 @@ class AdminController {
             const totalRevenue = deliveries.reduce((sum, d) => sum + (d.fee || 0), 0);
             const driverPayouts = deliveries.reduce((sum, d) => sum + (d.driverEarnings || 0), 0);
             const platformFees = totalRevenue - driverPayouts;
-            const profitMargin = totalRevenue > 0 ? (platformFees / totalRevenue) * 100 : 0;
+            const profitMargin = calculateProfitMargin(platformFees, totalRevenue);
 
             // Generate chart data based on groupBy
             const chartData = [];
@@ -2282,7 +2301,7 @@ class AdminController {
             const drivers = await Driver.find({
                 isActive: true,
                 isSuspended: false
-            }).lean();
+            });
 
             if (!drivers || drivers.length === 0) {
                 return successResponse(res, {

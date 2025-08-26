@@ -20,6 +20,7 @@ const seedDatabase = async () => {
         const admin = await Admin.create({
             name: 'Test Admin',
             email: 'admin@test.com',
+            password: 'TestAdmin123!', // Secure default password for testing
             role: 'admin',
             isActive: true,
             permissions: ['create_delivery', 'edit_delivery', 'delete_delivery', 'manage_drivers', 'view_analytics']
@@ -42,8 +43,13 @@ const seedDatabase = async () => {
 
         console.log('Database seeded successfully!');
         console.log('\nTest Accounts:');
-        console.log('Admin: admin@test.com');
-        console.log('Driver: driver@test.com');
+        console.log('Admin: admin@test.com (OTP authentication)');
+        console.log('Driver: driver@test.com (OTP authentication)');
+        console.log('\nAuthentication Method:');
+        console.log('- Both admins and drivers use OTP-only authentication');
+        console.log('- Request OTP: POST /api/auth/send-otp');
+        console.log('- Verify OTP: POST /api/auth/verify-otp');
+        console.log('\nNote: Password field exists in Admin model but is not used for authentication');
 
     } catch (error) {
         console.error('Error seeding database:', error);

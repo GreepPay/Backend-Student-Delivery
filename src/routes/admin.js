@@ -694,7 +694,6 @@ router.post('/earnings/fix/:driverId',
     AdminController.fixDriverEarnings
 );
 
-
 // 7. Get Report Status
 router.get('/earnings/reports/status/:reportId',
     requirePermission('view_analytics'),

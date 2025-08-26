@@ -58,6 +58,15 @@ class AIVerificationController {
                     }
                 };
 
+                // Check if all required documents are now verified
+                const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
+                    driver.documents?.profilePhoto?.status === 'verified' &&
+                    driver.documents?.identityCard?.status === 'verified' &&
+                    driver.documents?.universityEnrollment?.status === 'verified';
+
+                // Update isDocumentVerified field
+                driver.isDocumentVerified = allDocumentsVerified;
+
                 driver.markModified('documents');
                 await driver.save();
 

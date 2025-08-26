@@ -1,5 +1,6 @@
 const ReferralRewardsService = require('../services/referralRewardsService');
 const { successResponse, errorResponse, catchAsync } = require('../middleware/errorHandler');
+const { calculateProfitMargin } = require('../utils/helpers');
 
 class ReferralRewardsController {
     /**
@@ -220,7 +221,7 @@ class ReferralRewardsController {
                 companyShare: exampleCompanyShare,
                 maxReferralCost: maxReferralCost,
                 netProfit: exampleCompanyShare - maxReferralCost,
-                profitMargin: ((exampleCompanyShare - maxReferralCost) / exampleCompanyShare * 100).toFixed(1)
+                profitMargin: calculateProfitMargin(exampleCompanyShare - maxReferralCost, exampleCompanyShare)
             },
             rewards: {
                 activationBonus: config.activationBonus,
