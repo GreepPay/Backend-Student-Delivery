@@ -2282,7 +2282,7 @@ class AdminController {
             const drivers = await Driver.find({
                 isActive: true,
                 isSuspended: false
-            }).lean();
+            });
 
             if (!drivers || drivers.length === 0) {
                 return successResponse(res, {
