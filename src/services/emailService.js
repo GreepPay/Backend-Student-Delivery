@@ -221,7 +221,7 @@ Greep SDS Team
               </div>
               
               <div class="content">
-                  <h2>Hi ${name},</h2>
+                  <h2 class="capitalize">Hi ${name},</h2>
                   
                   <div class="success">
                       <h3>✅ Your account has been successfully activated!</h3>

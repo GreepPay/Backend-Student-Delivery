@@ -693,7 +693,6 @@ router.post('/earnings/fix/:driverId',
     validateParams(paramSchemas.driverId),
     AdminController.fixDriverEarnings
 );
-);
 
 // 7. Get Report Status
 router.get('/earnings/reports/status/:reportId',

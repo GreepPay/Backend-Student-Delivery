@@ -229,7 +229,7 @@ class DriverInvitationService {
                 subject: 'Welcome to Greep SDS - Your Account is Ready!',
                 data: {
                     name: driver.name,
-                    loginUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/driver/login`,
+                    loginUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}`,
                     supportWhatsApp: '+90 533 832 97 85',
                     supportInstagram: '@greepit'
                 }
