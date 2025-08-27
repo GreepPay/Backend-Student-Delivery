@@ -1,6 +1,7 @@
 # Student Delivery System API Documentation
 
 ## Base URL
+
 ```
 http://localhost:3000/api
 ```
@@ -10,6 +11,7 @@ http://localhost:3000/api
 The API uses JWT (JSON Web Token) authentication with OTP (One-Time Password) verification.
 
 ### Headers
+
 ```
 Authorization: Bearer <jwt_token>
 Content-Type: application/json
@@ -18,11 +20,13 @@ Content-Type: application/json
 ## Authentication Endpoints
 
 ### 1. Send OTP
+
 Send OTP to user's email for login.
 
 **POST** `/auth/send-otp`
 
 **Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -31,6 +35,7 @@ Send OTP to user's email for login.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -44,11 +49,13 @@ Send OTP to user's email for login.
 ```
 
 ### 2. Verify OTP & Login
+
 Verify OTP and receive JWT token.
 
 **POST** `/auth/verify-otp`
 
 **Body:**
+
 ```json
 {
   "email": "user@example.com",
@@ -58,6 +65,7 @@ Verify OTP and receive JWT token.
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -78,11 +86,13 @@ Verify OTP and receive JWT token.
 ```
 
 ### 3. Logout
+
 **POST** `/auth/logout`
 
 **Headers:** `Authorization: Bearer <token>`
 
 ### 4. Refresh Token
+
 **POST** `/auth/refresh-token`
 
 **Headers:** `Authorization: Bearer <token>`
@@ -94,12 +104,15 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ### Dashboard
 
 #### Get Dashboard Overview
+
 **GET** `/admin/dashboard?period=month`
 
 **Query Parameters:**
+
 - `period`: `today` | `week` | `month` | `year`
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -127,9 +140,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ### Driver Management
 
 #### Get All Drivers
+
 **GET** `/admin/drivers?page=1&limit=20&area=Gonyeli&isActive=true`
 
 **Query Parameters:**
+
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 20, max: 100)
 - `area`: Filter by area
@@ -138,9 +153,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 - `sortOrder`: `asc` | `desc`
 
 #### Add New Driver
+
 **POST** `/admin/drivers`
 
 **Body:**
+
 ```json
 {
   "email": "driver@example.com",
@@ -152,9 +169,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ```
 
 #### Update Driver
+
 **PUT** `/admin/drivers/:id`
 
 **Body:**
+
 ```json
 {
   "name": "Updated Name",
@@ -165,17 +184,21 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ```
 
 #### Delete Driver
+
 **DELETE** `/admin/drivers/:id`
 
 #### Get Driver Analytics
+
 **GET** `/admin/drivers/:driverId/analytics?period=month&month=11&year=2025`
 
 ### Delivery Management
 
 #### Get All Deliveries
+
 **GET** `/admin/deliveries?page=1&limit=20&status=delivered&area=Gonyeli`
 
 **Query Parameters:**
+
 - `status`: `pending` | `assigned` | `picked_up` | `delivered` | `cancelled`
 - `assignedTo`: Driver ID
 - `startDate`: ISO date string
@@ -185,9 +208,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 - `paymentMethod`: `cash` | `card` | `transfer`
 
 #### Create New Delivery
+
 **POST** `/admin/deliveries`
 
 **Body:**
+
 ```json
 {
   "pickupLocation": "Main Campus Gate",
@@ -204,9 +229,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ```
 
 #### Assign Delivery to Driver
+
 **POST** `/admin/deliveries/:id/assign`
 
 **Body:**
+
 ```json
 {
   "driverId": "driver_id_here",
@@ -215,9 +242,11 @@ All admin endpoints require `Authorization: Bearer <admin_token>`
 ```
 
 #### Bulk Operations
+
 **POST** `/admin/deliveries/bulk`
 
 **Body:**
+
 ```json
 {
   "operation": "assign" | "cancel" | "delete" | "updatePriority",
@@ -236,12 +265,15 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ### Profile & Status
 
 #### Get Profile
+
 **GET** `/driver/profile`
 
 #### Update Profile
+
 **PUT** `/driver/profile`
 
 **Body:**
+
 ```json
 {
   "name": "Updated Name",
@@ -250,14 +282,17 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 #### Toggle Online Status
+
 **POST** `/driver/toggle-online`
 
 ### Analytics & Earnings
 
 #### Get Personal Analytics
+
 **GET** `/driver/analytics?period=month&month=11&year=2025`
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -288,20 +323,25 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 #### Get Earnings Breakdown
+
 **GET** `/driver/earnings?period=month`
 
 ### Deliveries
 
 #### Get My Deliveries
+
 **GET** `/driver/deliveries?page=1&limit=20&status=delivered`
 
 #### Get Nearby Deliveries
+
 **GET** `/driver/deliveries/nearby?limit=10`
 
 #### Update Delivery Status
+
 **PUT** `/driver/deliveries/:deliveryId/status`
 
 **Body:**
+
 ```json
 {
   "status": "picked_up" | "delivered" | "cancelled",
@@ -315,11 +355,13 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ## Public Endpoints
 
 ### Track Delivery
+
 **GET** `/delivery/track/:deliveryCode`
 
 **Example:** `/delivery/track/%23001`
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -340,11 +382,13 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 ### Public Statistics
+
 **GET** `/delivery/public/stats`
 
 ## Error Responses
 
 ### Validation Error
+
 ```json
 {
   "success": false,
@@ -359,6 +403,7 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 ### Authentication Error
+
 ```json
 {
   "success": false,
@@ -367,6 +412,7 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 ### Permission Error
+
 ```json
 {
   "success": false,
@@ -375,6 +421,7 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ```
 
 ### Rate Limit Error
+
 ```json
 {
   "success": false,
@@ -399,6 +446,7 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 ### User Roles & Permissions
 
 #### Admin Permissions
+
 - `create_delivery` - Create new deliveries
 - `edit_delivery` - Update delivery details
 - `delete_delivery` - Delete deliveries
@@ -406,11 +454,13 @@ All driver endpoints require `Authorization: Bearer <driver_token>`
 - `view_analytics` - Access analytics and reports
 
 #### User Types
+
 - `admin` - Regular administrator
 - `super_admin` - Full system access
 - `driver` - Delivery driver
 
 ### Delivery Status Flow
+
 ```
 pending → assigned → picked_up → delivered
     ↓         ↓          ↓
@@ -418,8 +468,9 @@ cancelled  cancelled  cancelled
 ```
 
 ### Areas
+
 - Gonyeli
-- Kucuk  
+- Kucuk
 - Lefkosa
 - Famagusta
 - Kyrenia
@@ -434,14 +485,15 @@ cancelled  cancelled  cancelled
 ## Environment Setup
 
 ### Required Environment Variables
+
 ```bash
 NODE_ENV=development
 PORT=3000
 MONGODB_URI=<Ask me>
 JWT_SECRET=<Ask me>
 JWT_EXPIRES_IN=24h
-EMAIL_USER=<Ask me>
-EMAIL_PASSWORD=<Ask me>
+ZEPTO_MAIL_USER=<Ask me>
+ZEPTO_MAIL_PASSWORD=<Ask me>
 EMAIL_FROM_NAME=Student Delivery System
 FRONTEND_URL=http://localhost:3000
 MAX_REQUESTS_PER_HOUR=100
@@ -449,6 +501,7 @@ OTP_EXPIRY_MINUTES=10
 ```
 
 ### Installation & Running
+
 ```bash
 # Install dependencies
 npm install
@@ -463,19 +516,23 @@ npm start
 ## Business Logic Notes
 
 ### Revenue Split
+
 - Default delivery fee: 150₺
 - Driver earnings: 100₺ (67%)
 - Company earnings: 50₺ (33%)
 - Remission owed by driver: 50₺ per delivery
 
 ### OTP System
+
 - 6-digit numeric OTP
 - 10-minute expiration
 - Maximum 3 attempts per OTP
 - Rate limited: 3 requests per 5 minutes per email
 
 ### Driver Areas
+
 Drivers are assigned to specific areas for optimized delivery routing:
+
 - Gonyeli, Kucuk, Lefkosa, Famagusta, Kyrenia, Other
 
 This API provides a complete backend solution for your student delivery system with authentication, role-based access control, comprehensive analytics.
