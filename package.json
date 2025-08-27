@@ -16,7 +16,8 @@
     "seed": "node scripts/seed.js",
     "init-settings": "node scripts/initSystemSettings.js",
     "test:email": "node scripts/testZeptoMail.js",
-    "test:production": "node scripts/testProduction.js"
+    "test:production": "node scripts/testProduction.js",
+    "init-earnings": "node src/scripts/initEarningsConfig.js"
   },
   "keywords": [
     "delivery",
