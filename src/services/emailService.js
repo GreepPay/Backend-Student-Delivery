@@ -31,7 +31,7 @@ class EmailService {
     const html = this.getOTPTemplate(otp, userType);
 
     try {
-      // For development, log OTP to console instead of sending email
+      // For development mode, always log OTP to console instead of sending email
       if (process.env.NODE_ENV === 'development') {
         console.log(`🔐 DEVELOPMENT OTP for ${email} (${userType}): ${otp}`);
         console.log(`📧 Would send email to: ${email}`);
@@ -171,8 +171,8 @@ Greep SDS Team
     `;
 
     try {
-      // For development, log email details instead of sending
-      if (process.env.NODE_ENV === 'development') {
+      // For development without email credentials, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' && !process.env.ZEPTO_MAIL_USER) {
         console.log(`📧 DEVELOPMENT: Driver invitation email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Activation Link: ${activationLink}`);
@@ -290,8 +290,8 @@ Greep SDS Team
     `;
 
     try {
-      // For development, log email details instead of sending
-      if (process.env.NODE_ENV === 'development') {
+      // For development without email credentials, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' && !process.env.ZEPTO_MAIL_USER) {
         console.log(`📧 DEVELOPMENT: Driver welcome email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Login URL: ${loginUrl}`);

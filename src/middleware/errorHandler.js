@@ -206,12 +206,17 @@ const handleFileUploadError = (error) => {
 
 // OTP error handler
 const handleOTPError = (error) => {
+    console.log('🔍 OTP Error Debug:', error.message);
+
     const otpErrorMessages = {
         'OTP has expired': 'Your verification code has expired. Please request a new one.',
         'OTP has already been used': 'This verification code has already been used. Please request a new one.',
         'Invalid OTP': 'Invalid verification code. Please check and try again.',
         'Maximum OTP attempts exceeded': 'Too many failed attempts. Please request a new verification code.',
-        'Too many OTP requests': 'Too many requests. Please wait before requesting another code.'
+        'Too many OTP requests': 'Too many requests. Please wait before requesting another code.',
+        'Admin account not found or inactive': 'Admin account not found or inactive. Please contact support.',
+        'Driver account not found': 'Driver account not found. Please contact support.',
+        'Account suspended': 'Your account has been suspended. Please contact support.'
     };
 
     return {
