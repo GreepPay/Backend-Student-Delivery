@@ -10,7 +10,8 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "seed": "node scripts/seed.js",
-    "init-settings": "node scripts/initSystemSettings.js"
+    "init-settings": "node scripts/initSystemSettings.js",
+    "init-earnings": "node src/scripts/initEarningsConfig.js"
   },
   "keywords": [
     "delivery",
