@@ -3,10 +3,12 @@ const nodemailer = require('nodemailer');
 class EmailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.zeptomail.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
+        user: process.env.ZEPTO_MAIL_USER,
+        pass: process.env.ZEPTO_MAIL_PASSWORD
       }
     });
   }
@@ -29,15 +31,15 @@ class EmailService {
     const html = this.getOTPTemplate(otp, userType);
 
     try {
-      // For development, log OTP to console instead of sending email
-      if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
-        console.log(`🔐 DEVELOPMENT OTP for ${email} (${userType}): ${otp}`);
+      // For development mode or localhost testing, log OTP to console instead of sending email
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`🔐 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'} OTP for ${email} (${userType}): ${otp}`);
         console.log(`📧 Would send email to: ${email}`);
         return { success: true, messageId: 'dev-otp-' + Date.now() };
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: email,
         subject,
         html
@@ -58,7 +60,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: email,
         subject,
         html
@@ -169,16 +171,16 @@ Greep SDS Team
     `;
 
     try {
-      // For development, log email details instead of sending
-      if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
-        console.log(`📧 DEVELOPMENT: Driver invitation email would be sent to ${emailData.to}`);
+      // For development mode or localhost testing, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`📧 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'}: Driver invitation email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Activation Link: ${activationLink}`);
         return { success: true, messageId: 'dev-invitation-' + Date.now() };
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -288,16 +290,16 @@ Greep SDS Team
     `;
 
     try {
-      // For development, log email details instead of sending
-      if (process.env.NODE_ENV === 'development' && !process.env.EMAIL_USER) {
-        console.log(`📧 DEVELOPMENT: Driver welcome email would be sent to ${emailData.to}`);
+      // For development mode or localhost testing, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`📧 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'}: Driver welcome email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Login URL: ${loginUrl}`);
         return { success: true, messageId: 'dev-welcome-' + Date.now() };
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -322,7 +324,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: email,
         subject,
         html
@@ -343,7 +345,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: driverEmail,
         subject,
         html
@@ -365,7 +367,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: driverEmail,
         subject,
         html
@@ -387,7 +389,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.EMAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
         to: driverEmail,
         subject,
         html
