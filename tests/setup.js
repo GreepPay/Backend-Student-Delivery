@@ -9,8 +9,8 @@ beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     process.env.JWT_SECRET = 'test-secret-key';
     process.env.JWT_EXPIRES_IN = '1h';
-    process.env.EMAIL_USER = 'test@example.com';
-    process.env.EMAIL_PASSWORD = 'test-password';
+    process.env.ZEPTO_MAIL_USER = 'test@example.com';
+    process.env.ZEPTO_MAIL_PASSWORD = 'test-password';
     process.env.EMAIL_FROM_NAME = 'Test System';
 
     // Start in-memory MongoDB server
