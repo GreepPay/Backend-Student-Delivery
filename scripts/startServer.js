@@ -27,20 +27,20 @@ switch (mode) {
         console.log('📧 OTPs will be logged to console');
         env.NODE_ENV = 'development';
         break;
-        
+
     case 'prod':
         console.log('📋 Mode: Production');
         console.log('📧 Real emails will be sent via Zepto Mail');
         env.NODE_ENV = 'production';
         break;
-        
+
     case 'local':
         console.log('📋 Mode: Production with Localhost Override');
         console.log('📧 OTPs will be logged to console (for local testing)');
         env.NODE_ENV = 'production';
         env.LOCALHOST_OVERRIDE = 'true';
         break;
-        
+
     default:
         console.log('❌ Invalid mode. Available modes: dev, prod, local');
         console.log('Usage: node scripts/startServer.js [dev|prod|local]');
