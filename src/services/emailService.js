@@ -31,9 +31,9 @@ class EmailService {
     const html = this.getOTPTemplate(otp, userType);
 
     try {
-      // For development mode, always log OTP to console instead of sending email
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🔐 DEVELOPMENT OTP for ${email} (${userType}): ${otp}`);
+      // For development mode or localhost testing, log OTP to console instead of sending email
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`🔐 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'} OTP for ${email} (${userType}): ${otp}`);
         console.log(`📧 Would send email to: ${email}`);
         return { success: true, messageId: 'dev-otp-' + Date.now() };
       }
@@ -171,9 +171,9 @@ Greep SDS Team
     `;
 
     try {
-      // For development without email credentials, log email details instead of sending
-      if (process.env.NODE_ENV === 'development' && !process.env.ZEPTO_MAIL_USER) {
-        console.log(`📧 DEVELOPMENT: Driver invitation email would be sent to ${emailData.to}`);
+      // For development mode or localhost testing, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`📧 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'}: Driver invitation email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Activation Link: ${activationLink}`);
         return { success: true, messageId: 'dev-invitation-' + Date.now() };
@@ -290,9 +290,9 @@ Greep SDS Team
     `;
 
     try {
-      // For development without email credentials, log email details instead of sending
-      if (process.env.NODE_ENV === 'development' && !process.env.ZEPTO_MAIL_USER) {
-        console.log(`📧 DEVELOPMENT: Driver welcome email would be sent to ${emailData.to}`);
+      // For development mode or localhost testing, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true') {
+        console.log(`📧 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'}: Driver welcome email would be sent to ${emailData.to}`);
         console.log(`📧 Subject: ${emailData.subject}`);
         console.log(`📧 Login URL: ${loginUrl}`);
         return { success: true, messageId: 'dev-welcome-' + Date.now() };

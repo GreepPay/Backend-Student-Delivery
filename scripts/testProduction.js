@@ -30,7 +30,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Check required variables
 const requiredVars = [
     'MONGODB_URI',
-    'ZEPTO_MAIL_USER', 
+    'ZEPTO_MAIL_USER',
     'ZEPTO_MAIL_PASSWORD',
     'JWT_SECRET'
 ];
@@ -59,12 +59,12 @@ mongoose.connect(process.env.MONGODB_URI)
     })
     .finally(() => {
         console.log('');
-        
+
         // Test email service
         console.log('📧 Testing email service configuration...');
         const EmailService = require('../src/services/emailService');
         const emailService = EmailService;
-        
+
         emailService.testConnection()
             .then(result => {
                 if (result) {
@@ -80,7 +80,7 @@ mongoose.connect(process.env.MONGODB_URI)
                 console.log('');
                 console.log('🎯 Production Readiness Summary:');
                 console.log('==============================');
-                
+
                 if (process.env.NODE_ENV === 'production' && missingVars.length === 0) {
                     console.log('✅ Ready for production deployment!');
                     console.log('✅ All environment variables configured');
