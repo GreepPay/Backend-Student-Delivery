@@ -39,7 +39,7 @@ class EmailService {
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: email,
         subject,
         html
@@ -60,7 +60,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: email,
         subject,
         html
@@ -180,7 +180,7 @@ Greep SDS Team
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <noreply@greep.io>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -299,7 +299,7 @@ Greep SDS Team
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <noreply@greep.io>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -324,7 +324,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: email,
         subject,
         html
@@ -345,7 +345,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: driverEmail,
         subject,
         html
@@ -367,7 +367,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: driverEmail,
         subject,
         html
@@ -389,7 +389,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <noreply@greep.io>`,
         to: driverEmail,
         subject,
         html
