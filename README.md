@@ -495,6 +495,7 @@ JWT_EXPIRES_IN=24h
 ZEPTO_MAIL_USER=<Ask me>
 ZEPTO_MAIL_PASSWORD=<Ask me>
 EMAIL_FROM_NAME=Student Delivery System
+# Note: All emails will be sent from noreply@greep.io
 FRONTEND_URL=http://localhost:3000
 MAX_REQUESTS_PER_HOUR=100
 OTP_EXPIRY_MINUTES=10

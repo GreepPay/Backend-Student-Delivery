@@ -73,13 +73,17 @@ class OTPService {
     static async verifyUserExists(email, userType) {
         let user;
 
+        console.log(`🔍 Verifying user exists: ${email} (${userType})`);
+
         if (userType === 'admin') {
             user = await Admin.findActiveByEmail(email);
+            console.log(`🔍 Admin lookup result:`, user ? 'Found' : 'Not found');
             if (!user) {
                 throw new Error('Admin account not found or inactive');
             }
         } else if (userType === 'driver') {
             user = await Driver.findActiveByEmail(email);
+            console.log(`🔍 Driver lookup result:`, user ? 'Found' : 'Not found');
             if (!user) {
                 throw new Error('Driver account not found');
             }
@@ -90,6 +94,7 @@ class OTPService {
             throw new Error('Invalid user type');
         }
 
+        console.log(`✅ User verification successful for: ${email}`);
         return user;
     }
 
