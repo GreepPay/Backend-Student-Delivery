@@ -399,25 +399,25 @@ router.delete('/deliveries/:id',
     DeliveryController.deleteDelivery
 );
 
-// Delivery assignment - Commented out until methods are implemented
-// router.post('/deliveries/:id/assign',
-//     requirePermission('edit_delivery'),
-//     validateParams(paramSchemas.mongoId),
-//     validate(schemas.assignDelivery),
-//     DeliveryController.assignDelivery
-// );
+// Delivery assignment
+router.post('/deliveries/:id/assign',
+    requirePermission('edit_delivery'),
+    validateParams(paramSchemas.mongoId),
+    validate(schemas.assignDelivery),
+    DeliveryController.manualAssign
+);
 
-// router.post('/deliveries/:id/unassign',
-//     requirePermission('edit_delivery'),
-//     validateParams(paramSchemas.mongoId),
-//     DeliveryController.unassignDelivery
-// );
+router.post('/deliveries/:id/unassign',
+    requirePermission('edit_delivery'),
+    validateParams(paramSchemas.mongoId),
+    DeliveryController.unassignDelivery
+);
 
-// router.post('/deliveries/bulk',
-//     requirePermission('edit_delivery'),
-//     validateBatchOperation,
-//     DeliveryController.bulkOperations
-// );
+router.post('/deliveries/bulk',
+    requirePermission('edit_delivery'),
+    validateBatchOperation,
+    DeliveryController.bulkOperations
+);
 
 // Data export and reporting
 router.get('/export',
