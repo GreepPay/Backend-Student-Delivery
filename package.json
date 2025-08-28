@@ -9,6 +9,10 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:rate-limit": "node scripts/testRateLimiting.js",
+    "test:email": "node scripts/testEmailConfig.js",
+    "update:from-email": "node scripts/updateFromEmail.js",
+    "setup:dev": "node scripts/setupDev.js",
     "seed": "node scripts/seed.js",
     "init-settings": "node scripts/initSystemSettings.js",
     "init-earnings": "node src/scripts/initEarningsConfig.js"

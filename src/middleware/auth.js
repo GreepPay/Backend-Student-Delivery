@@ -287,36 +287,9 @@ const optionalAuth = async (req, res, next) => {
 
 // Rate limiting per user
 const userRateLimit = (maxRequests = 100, windowMs = 60 * 60 * 1000) => {
-    const requests = new Map();
-
-    return (req, res, next) => {
-        if (!req.user) return next();
-
-        const userId = req.user.id;
-        const now = Date.now();
-        const windowStart = now - windowMs;
-
-        // Clean old entries
-        if (requests.has(userId)) {
-            const userRequests = requests.get(userId).filter(time => time > windowStart);
-            requests.set(userId, userRequests);
-        } else {
-            requests.set(userId, []);
-        }
-
-        const userRequests = requests.get(userId);
-
-        if (userRequests.length >= maxRequests) {
-            return res.status(429).json({
-                success: false,
-                error: 'Too many requests. Please try again later.',
-                retryAfter: Math.ceil((userRequests[0] + windowMs - now) / 1000)
-            });
-        }
-
-        userRequests.push(now);
-        next();
-    };
+    // Import the centralized rate limiting configuration
+    const { createUserRateLimiter } = require('../config/rateLimit');
+    return createUserRateLimiter(maxRequests, windowMs);
 };
 
 // User context validation middleware

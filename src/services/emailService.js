@@ -2,15 +2,41 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.zeptomail.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: process.env.ZEPTO_MAIL_USER,
-        pass: process.env.ZEPTO_MAIL_PASSWORD
-      }
-    });
+    // Choose email provider based on environment variables
+    if (process.env.ZEPTO_MAIL_USER && process.env.ZEPTO_MAIL_PASSWORD) {
+      // Use ZeptoMail
+      this.transporter = nodemailer.createTransport({
+        host: 'smtp.zeptomail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.ZEPTO_MAIL_USER,
+          pass: process.env.ZEPTO_MAIL_PASSWORD
+        }
+      });
+      this.emailProvider = 'zeptomail';
+      // Use custom FROM email if set, otherwise use the SMTP user
+      this.fromEmail = process.env.FROM_EMAIL || process.env.ZEPTO_MAIL_USER;
+    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
+      // Use Gmail as fallback
+      this.transporter = nodemailer.createTransport({
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: process.env.EMAIL_PORT || 587,
+        secure: process.env.EMAIL_SECURE === 'true',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD
+        }
+      });
+      this.emailProvider = 'gmail';
+      // Use custom FROM email if set, otherwise use the SMTP user
+      this.fromEmail = process.env.FROM_EMAIL || process.env.EMAIL_USER;
+    } else {
+      // No email configuration available
+      this.transporter = null;
+      this.emailProvider = 'none';
+      this.fromEmail = null;
+    }
   }
 
   // Test email connection
@@ -39,7 +65,7 @@ class EmailService {
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: email,
         subject,
         html
@@ -60,7 +86,7 @@ class EmailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: email,
         subject,
         html
@@ -180,7 +206,7 @@ Greep SDS Team
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -299,7 +325,7 @@ Greep SDS Team
       }
 
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Greep SDS'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: emailData.to,
         subject: emailData.subject,
         html: htmlContent,
@@ -324,7 +350,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: email,
         subject,
         html
@@ -345,7 +371,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: driverEmail,
         subject,
         html
@@ -367,7 +393,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: driverEmail,
         subject,
         html
@@ -389,7 +415,7 @@ Greep SDS Team
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${process.env.ZEPTO_MAIL_USER}>`,
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
         to: driverEmail,
         subject,
         html
