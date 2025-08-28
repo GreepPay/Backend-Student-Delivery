@@ -110,19 +110,10 @@ otpSchema.statics.verifyOTP = async function (email, otp, userType) {
 
 // Static method to check rate limiting
 otpSchema.statics.checkRateLimit = async function (email, userType, timeWindow = 5, maxAttempts = 3) {
-    const windowStart = new Date(Date.now() - timeWindow * 60 * 1000);
-
-    const recentAttempts = await this.countDocuments({
-        email,
-        userType,
-        createdAt: { $gte: windowStart }
-    });
-
-    if (recentAttempts >= maxAttempts) {
-        throw new Error(`Too many OTP requests. Please wait ${timeWindow} minutes before trying again.`);
-    }
-
-    return true;
+    // Import the centralized rate limiting configuration
+    const { createOTPRateLimiter } = require('../config/rateLimit');
+    const otpRateLimiter = createOTPRateLimiter(timeWindow, maxAttempts);
+    return await otpRateLimiter(email, userType);
 };
 
 // Instance method to check if OTP is valid

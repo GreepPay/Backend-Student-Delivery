@@ -2,10 +2,12 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const path = require('path');
 require('dotenv').config();
+
+// Import rate limiting configuration
+const { createBroadcastLimiter, createGeneralLimiter, createProductionLimiter } = require('./config/rateLimit');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -27,29 +29,9 @@ const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const app = express();
 
-// Rate limiting for broadcast endpoint
-const broadcastLimiter = rateLimit({
-    windowMs: 5 * 1000, // 5 seconds
-    max: 3, // limit each IP to 3 requests per windowMs
-    message: {
-        success: false,
-        error: 'Too many broadcast requests, please wait 5 seconds'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// General rate limiting
-const generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: {
-        success: false,
-        error: 'Too many requests from this IP, please try again later'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+// Create rate limiters
+const broadcastLimiter = createBroadcastLimiter();
+const generalLimiter = createGeneralLimiter();
 
 // Security middleware
 app.use(helmet());
@@ -62,19 +44,9 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting - Disabled for development
-if (process.env.NODE_ENV === 'production') {
-    const limiter = rateLimit({
-        windowMs: 60 * 60 * 1000, // 1 hour
-        max: process.env.MAX_REQUESTS_PER_HOUR || 1000,
-        message: {
-            error: 'Too many requests from this IP, please try again later.'
-        },
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-    app.use('/api/', limiter);
-}
+// Rate limiting - Now handled by centralized configuration
+const limiter = createProductionLimiter();
+app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
