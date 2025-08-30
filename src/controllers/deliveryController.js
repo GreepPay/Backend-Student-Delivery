@@ -614,6 +614,109 @@ class DeliveryController {
         }
     });
 
+    // Unassign delivery from driver
+    static unassignDelivery = catchAsync(async (req, res) => {
+        const { id } = req.params;
+
+        try {
+            const delivery = await Delivery.findById(id);
+            if (!delivery) {
+                return errorResponse(res, { message: 'Delivery not found' }, 404);
+            }
+
+            // Clear assignment
+            delivery.assignedTo = null;
+            delivery.assignedAt = null;
+            delivery.status = 'pending';
+            delivery.broadcastStatus = 'pending';
+
+            await delivery.save();
+
+            successResponse(res, {
+                delivery: {
+                    id: delivery._id,
+                    status: delivery.status,
+                    assignedTo: delivery.assignedTo
+                }
+            }, 'Delivery unassigned successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Bulk operations for deliveries
+    static bulkOperations = catchAsync(async (req, res) => {
+        const { operation, ids, data } = req.body;
+
+        try {
+            let results = [];
+
+            switch (operation) {
+                case 'assign':
+                    for (const deliveryId of ids) {
+                        try {
+                            const delivery = await Delivery.findById(deliveryId);
+                            if (delivery) {
+                                delivery.assignedTo = data.driverId;
+                                delivery.assignedAt = new Date();
+                                delivery.status = 'assigned';
+                                delivery.broadcastStatus = 'completed';
+                                await delivery.save();
+                                results.push({ id: deliveryId, success: true });
+                            } else {
+                                results.push({ id: deliveryId, success: false, error: 'Delivery not found' });
+                            }
+                        } catch (error) {
+                            results.push({ id: deliveryId, success: false, error: error.message });
+                        }
+                    }
+                    break;
+
+                case 'cancel':
+                    for (const deliveryId of ids) {
+                        try {
+                            const delivery = await Delivery.findById(deliveryId);
+                            if (delivery) {
+                                delivery.status = 'cancelled';
+                                delivery.cancelledAt = new Date();
+                                await delivery.save();
+                                results.push({ id: deliveryId, success: true });
+                            } else {
+                                results.push({ id: deliveryId, success: false, error: 'Delivery not found' });
+                            }
+                        } catch (error) {
+                            results.push({ id: deliveryId, success: false, error: error.message });
+                        }
+                    }
+                    break;
+
+                case 'updatePriority':
+                    for (const deliveryId of ids) {
+                        try {
+                            const delivery = await Delivery.findById(deliveryId);
+                            if (delivery) {
+                                delivery.priority = data.priority;
+                                await delivery.save();
+                                results.push({ id: deliveryId, success: true });
+                            } else {
+                                results.push({ id: deliveryId, success: false, error: 'Delivery not found' });
+                            }
+                        } catch (error) {
+                            results.push({ id: deliveryId, success: false, error: error.message });
+                        }
+                    }
+                    break;
+
+                default:
+                    return errorResponse(res, { message: 'Invalid operation' }, 400);
+            }
+
+            successResponse(res, { results }, 'Bulk operation completed');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
 }
 
 module.exports = DeliveryController;

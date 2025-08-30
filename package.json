@@ -5,6 +5,10 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server",
+    "start": "node server.js",
+    "start:dev": "node scripts/startServer.js dev",
+    "start:prod": "node scripts/startServer.js prod",
+    "start:local": "node scripts/startServer.js local",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -16,6 +20,8 @@
     "setup:dev": "node scripts/setupDev.js",
     "seed": "node scripts/seed.js",
     "init-settings": "node scripts/initSystemSettings.js",
+    "test:email": "node scripts/testZeptoMail.js",
+    "test:production": "node scripts/testProduction.js",
     "init-earnings": "node src/scripts/initEarningsConfig.js"
   },
   "keywords": [
