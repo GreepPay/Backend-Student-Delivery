@@ -1,25 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const rateLimit = require('express-rate-limit');
 const DeliveryController = require('../controllers/deliveryController');
 const { authenticateToken, adminOnly, driverOnly, requirePermission } = require('../middleware/auth');
 const { validate, validateQuery, validateParams, schemas } = require('../middleware/validation');
+const { createBroadcastLimiter } = require('../config/rateLimit');
 
-// Rate limiting for broadcast endpoint to prevent spam
-const broadcastLimiter = rateLimit({
-    windowMs: 10 * 1000, // 10 seconds
-    max: 30, // limit each IP to 30 requests per 10 seconds (increased for polling)
-    message: {
-        success: false,
-        error: 'Too many broadcast requests, please wait 10 seconds'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: (req) => {
-        // Use user ID if authenticated, otherwise use IP
-        return req.user ? req.user.id : req.ip;
-    }
-});
+// Create broadcast rate limiter
+const broadcastLimiter = createBroadcastLimiter();
 
 // ========================================
 // TEST ENDPOINTS (for both admin and driver)
