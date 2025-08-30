@@ -106,6 +106,55 @@ class ReferralController {
     });
 
     /**
+     * Get recent referral activity (admin only)
+     */
+    static getReferralRecentActivity = catchAsync(async (req, res) => {
+        const { limit = 10 } = req.query;
+        const Referral = require('../models/Referral');
+
+        try {
+            const recentActivity = await Referral.find()
+                .populate('referrer', 'name email profilePicture')
+                .populate('referred', 'name email profilePicture')
+                .sort({ createdAt: -1 })
+                .limit(parseInt(limit))
+                .select('referrer referred status createdAt rewards');
+
+            const formattedActivity = recentActivity.map(activity => ({
+                id: activity._id,
+                type: 'referral',
+                action: activity.status === 'completed' ? 'Referral Completed' : 'New Referral',
+                referrer: activity.referrer ? {
+                    id: activity.referrer._id,
+                    name: activity.referrer.name,
+                    email: activity.referrer.email,
+                    profilePicture: activity.referrer.profilePicture
+                } : null,
+                referred: activity.referred ? {
+                    id: activity.referred._id,
+                    name: activity.referred.name,
+                    email: activity.referred.email,
+                    profilePicture: activity.referred.profilePicture
+                } : null,
+                status: activity.status,
+                rewards: activity.rewards,
+                timestamp: activity.createdAt,
+                description: activity.status === 'completed'
+                    ? `${activity.referrer?.name || 'Unknown'} referred ${activity.referred?.name || 'Unknown'}`
+                    : `New referral from ${activity.referrer?.name || 'Unknown'}`
+            }));
+
+            return successResponse(res, {
+                recentActivity: formattedActivity,
+                total: formattedActivity.length
+            }, 'Recent referral activity retrieved successfully');
+        } catch (error) {
+            console.error('Error getting recent referral activity:', error);
+            return errorResponse(res, 'Failed to retrieve recent activity', 500);
+        }
+    });
+
+    /**
      * Get referral statistics for admin dashboard
      */
     static getReferralStatistics = catchAsync(async (req, res) => {
