@@ -7,6 +7,7 @@
 
 // Default allowed origins
 const defaultAllowedOrigins = [
+    //this accepts all origins
     "*"
 ];
 
