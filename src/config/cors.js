@@ -7,11 +7,7 @@
 
 // Default allowed origins
 const defaultAllowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'https://student-delivery.greep.io/'
+    "*"
 ];
 
 // Get allowed origins from environment
