@@ -63,16 +63,16 @@ const expressCorsConfig = {
 
 // Socket.IO CORS configuration
 const socketCorsConfig = {
-    origin: getAllowedOrigins(),
+    origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Requested-With',
-        'Accept',
-        'Origin'
-    ]
+    // allowedHeaders: [
+    //     'Content-Type',
+    //     'Authorization',
+    //     'X-Requested-With',
+    //     'Accept',
+    //     'Origin'
+    // ]
 };
 
 // Log CORS configuration on startup
