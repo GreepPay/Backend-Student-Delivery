@@ -7,12 +7,12 @@ require('dotenv').config();
 const app = require('./src/app');
 
 const server = http.createServer(app);
+
+// Import CORS configuration
+const { socketCorsConfig } = require('./src/config/cors');
+
 const io = socketIo(server, {
-    cors: {
-        origin: process.env.FRONTEND_URL || "http://localhost:3000",
-        methods: ["GET", "POST"],
-        credentials: true
-    }
+    cors: socketCorsConfig
 });
 
 // Import background job service

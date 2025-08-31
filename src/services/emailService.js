@@ -16,7 +16,7 @@ class EmailService {
       });
       this.emailProvider = 'zeptomail';
       // Use custom FROM email if set, otherwise use the SMTP user
-      this.fromEmail = process.env.FROM_EMAIL || process.env.ZEPTO_MAIL_USER;
+      this.fromEmail = process.env.FROM_EMAIL || process.env.EMAIL_USER;
     } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
       // Use Gmail as fallback
       this.transporter = nodemailer.createTransport({
