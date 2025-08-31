@@ -16,11 +16,12 @@
     "test:rate-limit": "node scripts/testRateLimiting.js",
     "test:email": "node scripts/testEmailConfig.js",
     "test:referral": "node scripts/testReferralEndpoint.js",
+    "test:cors": "node scripts/testCors.js",
     "update:from-email": "node scripts/updateFromEmail.js",
     "setup:dev": "node scripts/setupDev.js",
     "seed": "node scripts/seed.js",
     "init-settings": "node scripts/initSystemSettings.js",
-    "test:email": "node scripts/testZeptoMail.js",
+    "test:Zemail": "node scripts/testZeptoMail.js",
     "test:production": "node scripts/testProduction.js",
     "init-earnings": "node src/scripts/initEarningsConfig.js"
   },
