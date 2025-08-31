@@ -9,6 +9,9 @@ require('dotenv').config();
 // Import rate limiting configuration
 const { createBroadcastLimiter, createGeneralLimiter, createProductionLimiter } = require('./config/rateLimit');
 
+// Import CORS configuration
+const { expressCorsConfig, logCorsConfig } = require('./config/cors');
+
 // Import routes
 const authRoutes = require('./routes/auth');
 const driverRoutes = require('./routes/driver');
@@ -37,12 +40,10 @@ const generalLimiter = createGeneralLimiter();
 app.use(helmet());
 
 // CORS configuration
-app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors(expressCorsConfig));
+
+// Log CORS configuration on startup
+logCorsConfig();
 
 // Rate limiting - Now handled by centralized configuration
 const limiter = createProductionLimiter();

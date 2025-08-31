@@ -1812,7 +1812,7 @@ class AdminController {
 
             // Store report metadata (in production, you'd save this to database)
             // For now, we'll generate the report URL
-            const reportUrl = `${process.env.BASE_URL || 'http://localhost:3001'}/api/admin/earnings/reports/download/${reportId}`;
+            const reportUrl = `${process.env.BASE_URL || process.env.API_URL || 'http://localhost:3001'}/api/admin/earnings/reports/download/${reportId}`;
             const downloadUrl = `/api/admin/earnings/reports/download/${reportId}`;
 
             successResponse(res, {
