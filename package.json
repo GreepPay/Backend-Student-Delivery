@@ -17,6 +17,7 @@
     "test:email": "node scripts/testEmailConfig.js",
     "test:referral": "node scripts/testReferralEndpoint.js",
     "test:cors": "node scripts/testCors.js",
+    "test:referral-system": "node scripts/testReferralSystem.js",
     "update:from-email": "node scripts/updateFromEmail.js",
     "setup:dev": "node scripts/setupDev.js",
     "seed": "node scripts/seed.js",
