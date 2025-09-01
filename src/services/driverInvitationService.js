@@ -27,15 +27,10 @@ class DriverInvitationService {
                 }).populate('referrer', 'name email');
 
                 if (!referralCodeRecord) {
-                    throw new Error('Invalid or expired referral code');
+                    throw new Error('Invalid or inactive referral code');
                 }
 
-                // Check if code is expired
-                if (referralCodeRecord.isExpired()) {
-                    await referralCodeRecord.markAsExpired();
-                    throw new Error('Referral code has expired');
-                }
-
+                // No expiration check needed - codes are permanent
                 referrerDriver = referralCodeRecord.referrer;
             }
 
@@ -195,10 +190,11 @@ class DriverInvitationService {
                     });
 
                     if (referralCodeRecord) {
-                        // Mark the referral code as used
-                        await referralCodeRecord.markAsUsed(driver._id);
+                        // Record usage of the referral code (reusable)
+                        await referralCodeRecord.recordUsage(driver._id, driver.name, driver.email);
 
-                        console.log(`Referral code ${invitation.referralCode} marked as used by driver ${driver._id}`);
+                        console.log(`Referral code ${invitation.referralCode} usage recorded for driver ${driver._id}`);
+                        console.log(`Total uses for ${referralCodeRecord.referralCode}: ${referralCodeRecord.totalUses}`);
                     }
                 } catch (referralError) {
                     console.error('Error processing referral during driver activation:', referralError);

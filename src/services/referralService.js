@@ -28,6 +28,7 @@ class ReferralService {
                     success: true,
                     referralCode: existingCode.referralCode,
                     driverName: driver.name,
+                    totalUses: existingCode.totalUses,
                     message: 'Existing active referral code found'
                 };
             }
@@ -35,11 +36,12 @@ class ReferralService {
             // Generate new referral code
             const referralCode = await InvitationReferralCode.generateReferralCode(driverId, driver.name);
 
-            // Create the invitation referral code record
+            // Create the invitation referral code record - NO EXPIRATION
             const invitationReferralCode = new InvitationReferralCode({
                 referrer: driverId,
                 referralCode: referralCode,
-                expiresAt: new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // 30 days from now
+                // No expiresAt field - codes are permanent
+                status: 'active'
             });
 
             await invitationReferralCode.save();
@@ -48,7 +50,8 @@ class ReferralService {
                 success: true,
                 referralCode,
                 driverName: driver.name,
-                message: 'Invitation referral code generated successfully'
+                totalUses: 0,
+                message: 'Permanent referral code generated successfully'
             };
         } catch (error) {
             console.error('Error generating invitation referral code:', error);
