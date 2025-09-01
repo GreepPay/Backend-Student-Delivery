@@ -17,27 +17,31 @@ const invitationReferralCodeSchema = new mongoose.Schema({
         trim: true
     },
 
-    // Status of the referral code
+    // Status of the referral code - now permanent
     status: {
         type: String,
-        enum: ['active', 'used', 'expired'],
+        enum: ['active', 'inactive'],
         default: 'active'
     },
 
-    // When the code was used (if applicable)
-    usedAt: {
-        type: Date
-    },
+    // Track usage history instead of single usage
+    usageHistory: [{
+        usedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Driver'
+        },
+        usedAt: {
+            type: Date,
+            default: Date.now
+        },
+        driverName: String,
+        driverEmail: String
+    }],
 
-    // Who used the code (if applicable)
-    usedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Driver'
-    },
-
-    // Expiration date
-    expiresAt: {
-        type: Date
+    // Total times used
+    totalUses: {
+        type: Number,
+        default: 0
     },
 
     // Notes
@@ -52,7 +56,6 @@ const invitationReferralCodeSchema = new mongoose.Schema({
 // Indexes
 invitationReferralCodeSchema.index({ referralCode: 1 });
 invitationReferralCodeSchema.index({ referrer: 1, status: 1 });
-invitationReferralCodeSchema.index({ status: 1, expiresAt: 1 });
 
 // Static method to generate referral code
 invitationReferralCodeSchema.statics.generateReferralCode = async function (driverId, driverName) {
@@ -79,23 +82,39 @@ invitationReferralCodeSchema.statics.generateReferralCode = async function (driv
     return referralCode;
 };
 
-// Method to check if code is expired
-invitationReferralCodeSchema.methods.isExpired = function () {
-    return new Date() > this.expiresAt;
+// Method to check if code is active
+invitationReferralCodeSchema.methods.isActive = function () {
+    return this.status === 'active';
 };
 
-// Method to mark code as used
-invitationReferralCodeSchema.methods.markAsUsed = function (usedByDriverId) {
-    this.status = 'used';
-    this.usedAt = new Date();
-    this.usedBy = usedByDriverId;
+// Method to record usage of the code
+invitationReferralCodeSchema.methods.recordUsage = function (usedByDriverId, driverName, driverEmail) {
+    this.usageHistory.push({
+        usedBy: usedByDriverId,
+        usedAt: new Date(),
+        driverName: driverName,
+        driverEmail: driverEmail
+    });
+    this.totalUses += 1;
     return this.save();
 };
 
-// Method to mark code as expired
-invitationReferralCodeSchema.methods.markAsExpired = function () {
-    this.status = 'expired';
+// Method to deactivate code
+invitationReferralCodeSchema.methods.deactivate = function () {
+    this.status = 'inactive';
     return this.save();
 };
+
+// Method to reactivate code
+invitationReferralCodeSchema.methods.reactivate = function () {
+    this.status = 'active';
+    return this.save();
+};
+
+// Virtual for recent usage (last 30 days)
+invitationReferralCodeSchema.virtual('recentUsage').get(function () {
+    const thirtyDaysAgo = new Date(Date.now() - (30 * 24 * 60 * 60 * 1000));
+    return this.usageHistory.filter(usage => usage.usedAt >= thirtyDaysAgo);
+});
 
 module.exports = mongoose.model('InvitationReferralCode', invitationReferralCodeSchema);
