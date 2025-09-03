@@ -160,6 +160,7 @@ const schemas = {
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
         area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
         transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
+        transportationMethod: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         university: Joi.string().valid(
             'Eastern Mediterranean University (EMU)',
             'Near East University (NEU)',

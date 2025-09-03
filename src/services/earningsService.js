@@ -423,6 +423,7 @@ class EarningsService {
             if (earnings.length > 0) {
                 driver.totalEarnings = earnings[0].totalEarnings;
                 driver.totalDeliveries = earnings[0].totalDeliveries;
+                driver.completedDeliveries = earnings[0].totalDeliveries; // Also update completedDeliveries
                 await driver.save();
             }
         } catch (error) {
