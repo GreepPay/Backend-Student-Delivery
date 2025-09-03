@@ -523,7 +523,7 @@ class DriverController {
         console.log('updateDeliveryStatus called with:', { deliveryId, status, user: user.id });
 
         try {
-            const delivery = await Delivery.findById(deliveryId);
+            const delivery = await Delivery.findById(deliveryId).populate('assignedTo', 'name _id');
             if (!delivery) {
                 return res.status(404).json({
                     success: false,
@@ -599,7 +599,7 @@ class DriverController {
             }
 
             // SAFEGUARD 2: Use EarningsService.updateDriverTotalEarnings() to recalculate totals
-            if (status === 'delivered') {
+            if (status === 'delivered' && delivery.assignedTo) {
                 try {
                     const EarningsService = require('../services/earningsService');
                     await EarningsService.updateDriverTotalEarnings(delivery.assignedTo._id);
@@ -610,8 +610,9 @@ class DriverController {
             }
 
             // SAFEGUARD 3: Validate that driver totals match the sum of their delivered deliveries
-            if (status === 'delivered') {
+            if (status === 'delivered' && delivery.assignedTo) {
                 try {
+                    console.log(`🔍 Starting earnings validation for driver: ${delivery.assignedTo.name} (${delivery.assignedTo._id})`);
                     const EarningsValidationService = require('../services/earningsValidationService');
                     const validation = await EarningsValidationService.validateDriverEarnings(delivery.assignedTo._id);
 
@@ -619,6 +620,7 @@ class DriverController {
                         console.warn(`⚠️ Driver earnings validation failed for ${delivery.assignedTo.name}:`, validation);
 
                         // Auto-fix the earnings if validation fails
+                        console.log(`🔧 Attempting to auto-fix driver earnings for ${delivery.assignedTo.name}`);
                         const fixResult = await EarningsValidationService.fixDriverEarnings(delivery.assignedTo._id);
                         if (fixResult.success) {
                             console.log(`✅ Auto-fix applied for driver ${delivery.assignedTo.name}`);
@@ -631,11 +633,19 @@ class DriverController {
                 } catch (validationError) {
                     console.error('Failed to validate driver earnings:', validationError);
                 }
+            } else if (status === 'delivered' && !delivery.assignedTo) {
+                console.log(`⚠️ Delivery ${delivery.deliveryCode} marked as delivered but has no assigned driver`);
             }
 
             // Create notification for status update
             try {
-                await NotificationService.createDeliveryStatusNotification(deliveryId, status, delivery.assignedTo);
+                if (delivery.assignedTo) {
+                    console.log(`📢 Creating status notification for driver: ${delivery.assignedTo.name} (${delivery.assignedTo._id})`);
+                    await NotificationService.sendDeliveryStatusNotification(delivery, status, delivery.assignedTo);
+                    console.log(`✅ Status notification created successfully`);
+                } else {
+                    console.log(`⚠️ No driver assigned to delivery ${delivery.deliveryCode}, skipping notification`);
+                }
             } catch (notificationError) {
                 console.error('Failed to create status notification:', notificationError.message);
             }
@@ -649,25 +659,27 @@ class DriverController {
                 }
 
                 // Update referral progress when delivery is completed
-                try {
-                    const ReferralService = require('../services/referralService');
-                    await ReferralService.updateReferralProgress(delivery.assignedTo.toString());
-                } catch (referralError) {
-                    console.error('Failed to update referral progress:', referralError.message);
-                }
-
-                // Process referral rewards for completed delivery
-                try {
-                    const ReferralRewardsService = require('../services/referralRewardsService');
-                    const { rewards } = await ReferralRewardsService.calculateDeliveryRewards(deliveryId, delivery.assignedTo.toString());
-
-                    if (rewards.length > 0) {
-                        await ReferralRewardsService.processRewards(rewards);
-                        console.log(`Processed ${rewards.length} referral rewards for delivery ${deliveryId}`);
+                if (delivery.assignedTo) {
+                    try {
+                        const ReferralService = require('../services/referralService');
+                        await ReferralService.updateReferralProgress(delivery.assignedTo.toString());
+                    } catch (referralError) {
+                        console.error('Failed to update referral progress:', referralError.message);
                     }
-                } catch (rewardError) {
-                    console.error('Failed to process referral rewards:', rewardError.message);
-                    // Don't fail the delivery update if referral rewards fail
+
+                    // Process referral rewards for completed delivery
+                    try {
+                        const ReferralRewardsService = require('../services/referralRewardsService');
+                        const { rewards } = await ReferralRewardsService.calculateDeliveryRewards(deliveryId, delivery.assignedTo.toString());
+
+                        if (rewards.length > 0) {
+                            await ReferralRewardsService.processRewards(rewards);
+                            console.log(`Processed ${rewards.length} referral rewards for delivery ${deliveryId}`);
+                        }
+                    } catch (rewardError) {
+                        console.error('Failed to process referral rewards:', rewardError.message);
+                        // Don't fail the delivery update if referral rewards fail
+                    }
                 }
             }
 
@@ -1823,11 +1835,15 @@ class DriverController {
     // Update driver profile
     static updateProfile = catchAsync(async (req, res) => {
         const { user } = req;
-        const { fullName, phone, area, transportationType, university, studentId, address } = req.body;
+        const { fullName, phone, area, transportationType, transportationMethod, university, studentId, address } = req.body;
+
+        // Handle both field names for backward compatibility
+        const finalTransportationType = transportationType || transportationMethod;
 
         console.log('📝 updateProfile called with data:', {
             userId: user.id,
-            updateData: { fullName, phone, area, transportationType, university, studentId, address }
+            updateData: { fullName, phone, area, transportationType: finalTransportationType, university, studentId, address },
+            originalFields: { transportationType, transportationMethod }
         });
 
         try {
@@ -1843,7 +1859,7 @@ class DriverController {
             if (fullName !== undefined) driver.fullName = fullName;
             if (phone !== undefined) driver.phone = phone;
             if (area !== undefined) driver.area = area;
-            if (transportationType !== undefined) driver.transportationType = transportationType;
+            if (finalTransportationType !== undefined) driver.transportationType = finalTransportationType;
             if (university !== undefined) driver.university = university;
             if (studentId !== undefined) driver.studentId = studentId;
             if (address !== undefined) driver.address = address;

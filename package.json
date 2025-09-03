@@ -20,6 +20,7 @@
     "test:referral-system": "node scripts/testReferralSystem.js",
     "migrate:referral-codes": "node scripts/migrateReferralCodes.js",
     "test:permanent-codes": "node scripts/testPermanentReferralCodes.js",
+    "test:profile-update": "node scripts/testProfileUpdate.js",
     "update:from-email": "node scripts/updateFromEmail.js",
     "setup:dev": "node scripts/setupDev.js",
     "seed": "node scripts/seed.js",
