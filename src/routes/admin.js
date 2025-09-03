@@ -115,6 +115,12 @@ router.get('/analytics/remittances',
     AdminController.getRemittanceMetrics
 );
 
+router.get('/analytics/delivery-status-breakdown',
+    requirePermission('view_analytics'),
+    validateQuery(schemas.analyticsQuery),
+    AdminController.getDeliveryStatusBreakdown
+);
+
 router.get('/analytics/growth',
     requirePermission('view_analytics'),
     validateQuery(schemas.analyticsQuery),
