@@ -120,8 +120,16 @@ class AnalyticsService {
                     status: 'delivered',
                     ...deliveredDateFilter
                 }),
-                Delivery.countDocuments({ status: 'pending' }),
-                Delivery.countDocuments({ status: 'assigned' })
+                // Apply date filter to pending deliveries for consistency
+                Delivery.countDocuments({
+                    status: 'pending',
+                    ...dateFilter
+                }),
+                // Apply date filter to assigned deliveries for consistency
+                Delivery.countDocuments({
+                    status: 'assigned',
+                    ...dateFilter
+                })
             ]);
 
             // Calculate revenue
@@ -359,6 +367,91 @@ class AnalyticsService {
             }));
         } catch (error) {
             console.error('Delivery Status Error:', error.message);
+            throw error;
+        }
+    }
+
+    // Get comprehensive delivery status breakdown for debugging
+    static async getDeliveryStatusBreakdown(period = 'month') {
+        try {
+            const { startDate, endDate } = this.getDateRange(period);
+
+            // Get counts by status for the period
+            const statusData = await Delivery.aggregate([
+                {
+                    $match: {
+                        createdAt: { $gte: startDate, $lte: endDate }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$status',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            // Get total counts (all time) for comparison
+            const totalStatusData = await Delivery.aggregate([
+                {
+                    $group: {
+                        _id: '$status',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            // Get counts by broadcast status
+            const broadcastStatusData = await Delivery.aggregate([
+                {
+                    $match: {
+                        createdAt: { $gte: startDate, $lte: endDate }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$broadcastStatus',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            const periodTotal = statusData.reduce((sum, item) => sum + item.count, 0);
+            const allTimeTotal = totalStatusData.reduce((sum, item) => sum + item.count, 0);
+
+            return {
+                period,
+                startDate,
+                endDate,
+                periodBreakdown: {
+                    total: periodTotal,
+                    byStatus: statusData.map(item => ({
+                        status: item._id,
+                        count: item.count,
+                        percentage: periodTotal > 0 ? Math.round((item.count / periodTotal) * 100 * 10) / 10 : 0
+                    }))
+                },
+                allTimeBreakdown: {
+                    total: allTimeTotal,
+                    byStatus: totalStatusData.map(item => ({
+                        status: item._id,
+                        count: item.count,
+                        percentage: allTimeTotal > 0 ? Math.round((item.count / allTimeTotal) * 100 * 10) / 10 : 0
+                    }))
+                },
+                broadcastStatusBreakdown: {
+                    byBroadcastStatus: broadcastStatusData.map(item => ({
+                        broadcastStatus: item._id,
+                        count: item.count
+                    }))
+                },
+                discrepancies: {
+                    periodVsAllTime: allTimeTotal - periodTotal,
+                    explanation: `Period shows ${periodTotal} deliveries, all-time shows ${allTimeTotal} deliveries. Difference: ${allTimeTotal - periodTotal}`
+                }
+            };
+        } catch (error) {
+            console.error('Delivery Status Breakdown Error:', error.message);
             throw error;
         }
     }

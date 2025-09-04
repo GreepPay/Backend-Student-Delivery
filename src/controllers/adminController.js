@@ -2494,6 +2494,19 @@ class AdminController {
         }
     });
 
+    // Get comprehensive delivery status breakdown for debugging
+    static getDeliveryStatusBreakdown = catchAsync(async (req, res) => {
+        const { period = 'month' } = req.query;
+
+        try {
+            const breakdown = await AnalyticsService.getDeliveryStatusBreakdown(period);
+
+            successResponse(res, breakdown, 'Delivery status breakdown retrieved successfully');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
 }
 
 module.exports = AdminController;

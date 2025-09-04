@@ -75,7 +75,10 @@ class EnhancedAnalyticsService {
                 status: 'delivered',
                 deliveredAt: { $gte: startDate, $lte: endDate }
             }),
-            Delivery.countDocuments({ status: 'pending' }),
+            Delivery.countDocuments({
+                status: 'pending',
+                createdAt: { $gte: startDate, $lte: endDate }
+            }),
             Delivery.aggregate([
                 {
                     $match: {

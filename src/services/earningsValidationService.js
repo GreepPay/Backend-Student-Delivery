@@ -10,8 +10,20 @@ class EarningsValidationService {
      */
     static async validateDriverEarnings(driverId) {
         try {
+            console.log(`🔍 Validating earnings for driver: ${driverId}`);
+
+            if (!driverId) {
+                console.error('❌ Driver ID is undefined or null');
+                return {
+                    isValid: false,
+                    error: 'Driver ID is undefined or null',
+                    details: null
+                };
+            }
+
             const driver = await Driver.findById(driverId);
             if (!driver) {
+                console.error(`❌ Driver not found with ID: ${driverId}`);
                 return {
                     isValid: false,
                     error: 'Driver not found',
@@ -178,15 +190,54 @@ class EarningsValidationService {
                 };
             }
 
-            // Calculate earnings using the delivery controller method
-            const DeliveryController = require('../controllers/deliveryController');
-            const earningsResult = await DeliveryController.calculateDriverEarnings(deliveryId);
+            // Calculate earnings using the earnings service directly to avoid circular dependency
+            const EarningsService = require('./earningsService');
+            const earningsCalculation = await EarningsService.calculateEarnings(delivery.fee);
+            const baseEarnings = earningsCalculation.driverEarning;
+
+            // Calculate bonuses
+            let totalBonus = 0;
+
+            // Priority bonus (10% for high priority)
+            if (delivery.priority === 'high') {
+                totalBonus += Math.round(baseEarnings * 0.1);
+            }
+
+            // Speed bonus (5% if completed within estimated time)
+            if (delivery.estimatedTime && delivery.deliveredAt && delivery.assignedAt) {
+                const estimatedMinutes = delivery.estimatedTime;
+                const actualMinutes = (delivery.deliveredAt - delivery.assignedAt) / (1000 * 60);
+
+                if (actualMinutes <= estimatedMinutes) {
+                    totalBonus += Math.round(baseEarnings * 0.05);
+                }
+            }
+
+            // Rating bonus (2% for 5-star rating)
+            if (delivery.assignedTo) {
+                const driver = await Driver.findById(delivery.assignedTo);
+                if (driver && driver.rating >= 4.5) {
+                    totalBonus += Math.round(baseEarnings * 0.02);
+                }
+            }
+
+            const totalEarnings = baseEarnings + totalBonus;
+
+            // Update delivery with calculated earnings
+            delivery.driverEarning = totalEarnings;
+            delivery.earningsCalculated = true;
+            delivery.earningsCalculationDate = new Date();
+            await delivery.save({ validateBeforeSave: false });
 
             return {
                 success: true,
                 message: 'Earnings calculated successfully',
-                earnings: earningsResult.totalEarnings,
-                details: earningsResult
+                earnings: totalEarnings,
+                details: {
+                    baseEarnings,
+                    totalBonus,
+                    totalEarnings
+                }
             };
         } catch (error) {
             console.error('Error ensuring delivery earnings calculated:', error);
