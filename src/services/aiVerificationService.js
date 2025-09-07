@@ -87,27 +87,14 @@ Return a JSON response with:
 - reason: string explaining the result
 - details: object with specific findings`,
 
-            universityEnrollment: `Analyze this university enrollment document. Check for:
-1. University letterhead and branding
-2. Student name and ID
-3. Enrollment status and dates
-4. Course/program information
-5. Official signatures and stamps
-6. Document authenticity
-
-Return a JSON response with:
-- isValid: boolean
-- confidence: number (0-100)
-- reason: string explaining the result
-- details: object with specific findings`,
-
-            identityCard: `Analyze this identity card. Check for:
-1. Government-issued format
+            passportPhoto: `Analyze this passport photo or national identity card. Check for:
+1. Government-issued format (passport or national ID)
 2. Clear photo and personal details
-3. Valid expiration date
-4. Security features
+3. Valid expiration date (if applicable)
+4. Security features and watermarks
 5. Document authenticity
-6. No signs of tampering
+6. No signs of tampering or alteration
+7. Proper lighting and image quality
 
 Return a JSON response with:
 - isValid: boolean
@@ -242,26 +229,16 @@ Return a JSON response with:
                     professional: true
                 }
             },
-            universityEnrollment: {
+            passportPhoto: {
                 isValid: true,
-                confidence: 88,
-                reason: 'Enrollment document appears authentic with official university letterhead',
+                confidence: 94,
+                reason: 'Passport photo appears to be a valid government-issued document',
                 analysis: {
-                    universityName: 'Cyprus West University',
-                    enrollmentStatus: 'active',
-                    program: 'Computer Science',
-                    validity: 'confirmed'
-                }
-            },
-            identityCard: {
-                isValid: true,
-                confidence: 92,
-                reason: 'Identity card appears to be a valid government-issued document',
-                analysis: {
-                    documentType: 'National ID',
+                    documentType: 'Passport/National ID',
                     expirationDate: '2028-05-15',
                     securityFeatures: 'present',
-                    authenticity: 'verified'
+                    authenticity: 'verified',
+                    photoQuality: 'clear'
                 }
             },
 

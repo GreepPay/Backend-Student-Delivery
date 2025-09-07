@@ -1650,7 +1650,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+            const validDocuments = ['studentId', 'profilePhoto', 'passportPhoto'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1708,7 +1708,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+            const validDocuments = ['studentId', 'profilePhoto', 'passportPhoto'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1777,16 +1777,16 @@ class DriverController {
             const savedDriver = await driver.save();
 
             console.log('✅ Driver saved successfully:', savedDriver._id);
-            console.log('✅ Document URL saved:', savedDriver.documents[documentType].documentUrl);
+            console.log('✅ Document URL saved:', savedDriver?.documents?.[documentType]?.documentUrl);
 
             // Verify the save worked
             const verificationDriver = await Driver.findById(user.id);
-            console.log('🔍 Verification - Document URL:', verificationDriver.documents[documentType].documentUrl);
+            console.log('🔍 Verification - Document URL:', verificationDriver?.documents?.[documentType]?.documentUrl);
 
             successResponse(res, {
                 documentType,
                 status: 'pending',
-                uploadDate: savedDriver.documents[documentType].uploadDate,
+                uploadDate: savedDriver?.documents?.[documentType]?.uploadDate,
                 documentUrl: uploadResult.url,
                 message: 'Document uploaded successfully and pending verification'
             }, 'Document uploaded successfully and pending verification');
@@ -1828,6 +1828,53 @@ class DriverController {
 
         } catch (error) {
             console.error('Verification status update error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Force refresh verification status (for drivers to sync their status)
+    static refreshVerificationStatus = catchAsync(async (req, res) => {
+        const { user } = req;
+
+        try {
+            const driver = await Driver.findById(user.id);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Check if all required documents are verified
+            const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
+                driver.documents?.profilePhoto?.status === 'verified' &&
+                driver.documents?.passportPhoto?.status === 'verified';
+
+            // Update isDocumentVerified field if it's different
+            let wasUpdated = false;
+            if (driver.isDocumentVerified !== allDocumentsVerified) {
+                driver.isDocumentVerified = allDocumentsVerified;
+                await driver.save();
+                wasUpdated = true;
+                console.log(`✅ Updated verification status for driver ${driver.email}: ${allDocumentsVerified}`);
+            }
+
+            // Get fresh verification status
+            const verificationStatus = driver.verificationStatus;
+            const accountStatus = driver.accountStatus;
+            const profileCompletion = driver.profileCompletion;
+
+            successResponse(res, {
+                verificationStatus,
+                accountStatus,
+                profileCompletion,
+                isDocumentVerified: driver.isDocumentVerified,
+                wasUpdated,
+                message: wasUpdated ? 'Verification status updated successfully' : 'Verification status is already up to date'
+            }, 'Verification status refreshed successfully');
+
+        } catch (error) {
+            console.error('Error refreshing verification status:', error);
             errorResponse(res, error, 500);
         }
     });

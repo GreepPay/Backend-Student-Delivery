@@ -26,6 +26,8 @@ const referralRoutes = require('./routes/referral');
 const referralRewardsRoutes = require('./routes/referralRewards');
 const publicRoutes = require('./routes/public');
 const remittanceRoutes = require('./routes/remittance');
+const messageRoutes = require('./routes/messages');
+const conversationRoutes = require('./routes/conversations');
 
 // Import middleware
 const { errorHandler, notFound } = require('./middleware/errorHandler');
@@ -90,6 +92,8 @@ app.use('/api/referral', referralRoutes);
 app.use('/api/referral-rewards', referralRewardsRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/admin/remittances', remittanceRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

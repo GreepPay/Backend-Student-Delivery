@@ -164,26 +164,7 @@ const driverSchema = new mongoose.Schema({
                 confidence: Number
             }
         },
-        universityEnrollment: {
-            status: {
-                type: String,
-                enum: ['pending', 'verified', 'rejected'],
-                default: 'pending'
-            },
-            uploadDate: Date,
-            documentUrl: String,
-            rejectionReason: String,
-            verificationDate: Date,
-            aiVerification: {
-                classification: Object,
-                extractedText: Object,
-                faceDetection: Object,
-                authenticity: Object,
-                fraudDetection: Object,
-                confidence: Number
-            }
-        },
-        identityCard: {
+        passportPhoto: {
             status: {
                 type: String,
                 enum: ['pending', 'verified', 'rejected'],
@@ -463,8 +444,7 @@ driverSchema.virtual('verificationStatus').get(function () {
 
     const isDocumentsVerified = this.documents?.studentId?.status === 'verified' &&
         this.documents?.profilePhoto?.status === 'verified' &&
-        this.documents?.identityCard?.status === 'verified' &&
-        this.documents?.universityEnrollment?.status === 'verified';
+        this.documents?.passportPhoto?.status === 'verified';
 
     const verificationCount = [
         this.isEmailVerified,
@@ -520,8 +500,7 @@ driverSchema.virtual('verificationProgress').get(function () {
         // Document verification
         this.documents?.studentId?.status === 'verified',
         this.documents?.profilePhoto?.status === 'verified',
-        this.documents?.identityCard?.status === 'verified',
-        this.documents?.universityEnrollment?.status === 'verified'
+        this.documents?.passportPhoto?.status === 'verified'
     ];
 
 
@@ -551,15 +530,12 @@ driverSchema.virtual('profileCompletion').get(function () {
             email: this.isEmailVerified,
             documents: this.documents?.studentId?.status === 'verified' &&
                 this.documents?.profilePhoto?.status === 'verified' &&
-                this.documents?.identityCard?.status === 'verified' &&
-                this.documents?.universityEnrollment?.status === 'verified'
+                this.documents?.passportPhoto?.status === 'verified'
         },
         documents: {
             studentId: this.documents?.studentId?.status === 'verified',
             profilePhoto: this.documents?.profilePhoto?.status === 'verified' || (this.profilePicture && this.profilePicture.includes('cloudinary.com')),
-            identityCard: this.documents?.identityCard?.status === 'verified',
-            universityEnrollment: this.documents?.universityEnrollment?.status === 'verified',
-
+            passportPhoto: this.documents?.passportPhoto?.status === 'verified'
         }
     };
 
@@ -615,8 +591,7 @@ driverSchema.virtual('accountStatus').get(function () {
             }
         },
         verification: {
-            studentVerified: this.documents?.studentId?.status === 'verified' &&
-                this.documents?.universityEnrollment?.status === 'verified',
+            studentVerified: this.documents?.studentId?.status === 'verified',
             profileComplete: profileCompletion.overall >= 80,
             activeDeliveryPartner: this.isActive && !this.isSuspended && profileCompletion.readyForDeliveries
         },
@@ -631,15 +606,10 @@ driverSchema.virtual('accountStatus').get(function () {
                 uploadDate: this.documents?.profilePhoto?.uploadDate || (this.profilePicture ? new Date() : undefined),
                 rejectionReason: this.documents?.profilePhoto?.rejectionReason
             },
-            universityEnrollment: {
-                status: this.documents?.universityEnrollment?.status || 'pending',
-                uploadDate: this.documents?.universityEnrollment?.uploadDate,
-                rejectionReason: this.documents?.universityEnrollment?.rejectionReason
-            },
-            identityCard: {
-                status: this.documents?.identityCard?.status || 'pending',
-                uploadDate: this.documents?.identityCard?.uploadDate,
-                rejectionReason: this.documents?.identityCard?.rejectionReason
+            passportPhoto: {
+                status: this.documents?.passportPhoto?.status || 'pending',
+                uploadDate: this.documents?.passportPhoto?.uploadDate,
+                rejectionReason: this.documents?.passportPhoto?.rejectionReason
             },
 
         },
