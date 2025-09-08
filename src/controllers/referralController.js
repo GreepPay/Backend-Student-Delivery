@@ -337,6 +337,141 @@ class ReferralController {
             referralPoints: driver.referralPoints || 0
         });
     });
+
+    // Get driver referral points history
+    static getDriverPointsHistory = catchAsync(async (req, res) => {
+        const { driverId } = req.params;
+        const { limit = 20, page = 1 } = req.query;
+        const Referral = require('../models/Referral');
+
+        // Verify driver exists
+        const Driver = require('../models/Driver');
+        const driver = await Driver.findById(driverId).select('name');
+        if (!driver) {
+            return errorResponse(res, 'Driver not found', 404);
+        }
+
+        // Get referrals where this driver is either the referrer or referred
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const [referrals, total] = await Promise.all([
+            Referral.find({
+                $or: [
+                    { referrer: driverId },
+                    { referred: driverId }
+                ]
+            })
+                .populate('referrer', 'name email')
+                .populate('referred', 'name email')
+                .sort({ completedAt: -1, createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit)),
+            Referral.countDocuments({
+                $or: [
+                    { referrer: driverId },
+                    { referred: driverId }
+                ]
+            })
+        ]);
+
+        // Format the history
+        const pointsHistory = referrals.map(referral => {
+            const isReferrer = referral.referrer._id.toString() === driverId.toString();
+            const isReferred = referral.referred._id.toString() === driverId.toString();
+
+            return {
+                referralId: referral._id,
+                referralCode: referral.referralCode,
+                type: isReferrer ? 'earned' : 'received',
+                points: isReferrer ? referral.rewards.referrer : referral.rewards.referred,
+                status: referral.status,
+                otherDriver: isReferrer ? referral.referred : referral.referrer,
+                completedAt: referral.completedAt,
+                createdAt: referral.createdAt,
+                description: isReferrer
+                    ? `Earned ${referral.rewards.referrer} points for referring ${referral.referred.name}`
+                    : `Received ${referral.rewards.referred} points from ${referral.referrer.name}'s referral`
+            };
+        });
+
+        return successResponse(res, {
+            driverId: driver._id,
+            driverName: driver.name,
+            pointsHistory,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    });
+
+    // Redeem referral points
+    static redeemPoints = catchAsync(async (req, res) => {
+        const { driverId } = req.params;
+        const { amount } = req.body;
+        const Driver = require('../models/Driver');
+        const ReferralRewardsService = require('../services/referralRewardsService');
+
+        // Verify driver exists
+        const driver = await Driver.findById(driverId).select('referralPoints name email');
+        if (!driver) {
+            return errorResponse(res, 'Driver not found', 404);
+        }
+
+        // Get active configuration for minimum points
+        const config = await ReferralRewardsService.getActiveConfig();
+        const minimumPointsForRedemption = config?.redemptionSettings?.minimumPointsForCashout || 50;
+
+        // Check if driver has enough points
+        const currentPoints = driver.referralPoints || 0;
+
+        if (currentPoints < minimumPointsForRedemption) {
+            return errorResponse(res, `Minimum ${minimumPointsForRedemption} points required for redemption. You currently have ${currentPoints} points.`, 400);
+        }
+
+        // Validate redemption amount
+        if (!amount || amount <= 0) {
+            return errorResponse(res, 'Invalid redemption amount', 400);
+        }
+
+        if (amount > currentPoints) {
+            return errorResponse(res, `Cannot redeem ${amount} points. You only have ${currentPoints} points available.`, 400);
+        }
+
+        // Check if amount is at least the minimum required
+        if (amount < minimumPointsForRedemption) {
+            return errorResponse(res, `Minimum redemption amount is ${minimumPointsForRedemption} points (₺${minimumPointsForRedemption})`, 400);
+        }
+
+        try {
+            // Deduct points from driver's account
+            await Driver.findByIdAndUpdate(driverId, {
+                $inc: { referralPoints: -amount }
+            });
+
+            // Create redemption record (you might want to create a Redemption model for this)
+            // For now, we'll just log it
+            console.log(`Driver ${driver.name} (${driver.email}) redeemed ${amount} points`);
+
+            // Get updated driver info
+            const updatedDriver = await Driver.findById(driverId).select('referralPoints name');
+
+            return successResponse(res, {
+                driverId: driver._id,
+                driverName: driver.name,
+                redeemedAmount: amount,
+                remainingPoints: updatedDriver.referralPoints,
+                redemptionValue: `₺${amount}`, // 1 point = 1 TL
+                message: `Successfully redeemed ${amount} points (₺${amount})`
+            }, 'Points redeemed successfully');
+
+        } catch (error) {
+            console.error('Error redeeming points:', error);
+            return errorResponse(res, 'Failed to redeem points', 500);
+        }
+    });
 }
 
 module.exports = ReferralController;

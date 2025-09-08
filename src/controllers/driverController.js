@@ -205,6 +205,60 @@ class DriverController {
                 addedBy: user.id
             });
 
+            // Create referral record if driver was added by another driver (not admin)
+            try {
+                const Referral = require('../models/Referral');
+                const ReferralService = require('../services/referralService');
+
+                // Check if the person adding the driver is a driver (not admin)
+                const Admin = require('../models/Admin');
+                const isAdmin = await Admin.findById(user.id);
+
+                if (!isAdmin) {
+                    // The person adding is a driver, create a referral record
+                    const referralCode = await Referral.generateReferralCode(user.id, user.name);
+
+                    const referral = new Referral({
+                        referrer: user.id,
+                        referred: newDriver._id,
+                        referralCode: referralCode,
+                        status: 'completed', // Mark as completed since driver is already added
+                        completionCriteria: {
+                            referredDeliveries: 0, // No delivery requirement for admin-added drivers
+                            referredEarnings: 0,
+                            timeLimit: 0
+                        },
+                        progress: {
+                            completedDeliveries: 0,
+                            totalEarnings: 0,
+                            daysRemaining: 0
+                        },
+                        rewards: {
+                            referrer: 15, // Points for referrer
+                            referred: 5   // Points for referred person
+                        },
+                        completedAt: new Date()
+                    });
+
+                    await referral.save();
+
+                    // Award points to both drivers
+                    await Promise.all([
+                        Driver.findByIdAndUpdate(user.id, {
+                            $inc: { referralPoints: 15 }
+                        }),
+                        Driver.findByIdAndUpdate(newDriver._id, {
+                            $inc: { referralPoints: 5 }
+                        })
+                    ]);
+
+                    console.log(`Referral created for admin-added driver: ${newDriver.name} by ${user.name}`);
+                }
+            } catch (referralError) {
+                console.error('Failed to create referral record for admin-added driver:', referralError);
+                // Don't fail driver creation if referral creation fails
+            }
+
             // Send invitation email
             try {
                 await EmailService.sendDriverInvitation(email, fullName, user.fullName);
