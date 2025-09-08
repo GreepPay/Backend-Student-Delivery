@@ -3,13 +3,15 @@ const router = express.Router();
 const MessageController = require('../controllers/messageController');
 const { authenticateToken } = require('../middleware/auth');
 const { validate, validateQuery, validateParams } = require('../middleware/validation');
+const { uploadSingleImage, handleUploadError } = require('../middleware/upload');
 const Joi = require('joi');
 
 // Validation schemas
 const messageSchemas = {
     sendMessage: Joi.object({
-        message: Joi.string().trim().min(1).max(1000).required(),
+        message: Joi.string().trim().max(1000).allow(''),
         type: Joi.string().valid('general', 'emergency', 'document', 'delivery', 'earnings').default('general'),
+        imageUrl: Joi.string().uri().allow('', null).optional(),
         location: Joi.object({
             lat: Joi.number().min(-90).max(90),
             lng: Joi.number().min(-180).max(180),
@@ -27,6 +29,14 @@ const messageSchemas = {
             then: Joi.optional(), // conversationId is optional for admin messages
             otherwise: Joi.forbidden()
         })
+    }).custom((value, helpers) => {
+        // Custom validation: either message or imageUrl must be provided
+        if ((!value.message || value.message.trim() === '') && !value.imageUrl) {
+            return helpers.error('custom.messageOrImageRequired');
+        }
+        return value;
+    }).messages({
+        'custom.messageOrImageRequired': 'Either message content or image is required'
     }),
 
     getMessageHistory: Joi.object({
@@ -93,6 +103,43 @@ router.delete('/:messageId',
 // Get message statistics (admin only)
 router.get('/stats',
     MessageController.getMessageStats
+);
+
+// Upload message image
+router.post('/upload-image',
+    authenticateToken,
+    (req, res, next) => {
+        // Use upload middleware with custom field name
+        const upload = require('multer')({
+            storage: require('multer').memoryStorage(),
+            fileFilter: (req, file, cb) => {
+                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                if (allowedTypes.includes(file.mimetype)) {
+                    cb(null, true);
+                } else {
+                    cb(new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.'), false);
+                }
+            },
+            limits: {
+                fileSize: 5 * 1024 * 1024, // 5MB limit
+                files: 1
+            }
+        }).single('messageImage');
+
+        upload(req, res, (err) => {
+            if (err) {
+                return handleUploadError(err, req, res, next);
+            }
+            next();
+        });
+    },
+    MessageController.uploadMessageImage
+);
+
+// Delete message image
+router.delete('/delete-image',
+    authenticateToken,
+    MessageController.deleteMessageImage
 );
 
 module.exports = router;

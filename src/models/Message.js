@@ -29,9 +29,18 @@ const messageSchema = new mongoose.Schema({
     // Message content
     message: {
         type: String,
-        required: true,
+        required: function () {
+            // Message is required only if no image is provided
+            return !this.imageUrl;
+        },
         trim: true,
         maxlength: [1000, 'Message cannot exceed 1000 characters']
+    },
+
+    // Image URL for message images
+    imageUrl: {
+        type: String,
+        required: false
     },
 
     // Message type and priority

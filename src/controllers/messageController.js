@@ -4,20 +4,22 @@ const Driver = require('../models/Driver');
 const Admin = require('../models/Admin');
 const { catchAsync, successResponse, errorResponse, paginatedResponse } = require('../middleware/errorHandler');
 const SocketService = require('../services/socketService');
+const CloudinaryService = require('../services/cloudinaryService');
 
 class MessageController {
     // Send a new message
     static sendMessage = catchAsync(async (req, res) => {
-        const { message, type = 'general', location, responseTo } = req.body;
+        const { message, type = 'general', location, responseTo, imageUrl } = req.body;
         const { user } = req;
 
         try {
-            // Validate message content
-            if (!message || message.trim().length === 0) {
-                return errorResponse(res, 'Message content is required', 400);
+            // Validate message content (allow empty if image is provided)
+            if ((!message || message.trim().length === 0) && !imageUrl) {
+                return errorResponse(res, 'Message content or image is required', 400);
             }
 
-            if (message.length > 1000) {
+            // Only validate message length if message is provided
+            if (message && message.length > 1000) {
                 return errorResponse(res, 'Message cannot exceed 1000 characters', 400);
             }
 
@@ -31,9 +33,9 @@ class MessageController {
                 adminId = user.id;
                 senderType = 'admin';
 
-                // For admin messages, driverId should be provided
-                if (!req.body.driverId) {
-                    return errorResponse(res, 'Driver ID is required for admin messages', 400);
+                // For admin messages, either driverId or conversationId should be provided
+                if (!req.body.driverId && !req.body.conversationId) {
+                    return errorResponse(res, 'Either driverId or conversationId is required for admin messages', 400);
                 }
                 driverId = req.body.driverId;
             } else {
@@ -103,11 +105,12 @@ class MessageController {
                 conversationId: conversation._id,
                 driverId,
                 adminId,
-                message: message.trim(),
+                message: message ? message.trim() : (imageUrl ? '' : 'No message'), // Allow empty message if image is provided
                 type,
                 senderType,
                 location: location || null,
-                responseTo: responseTo || null
+                responseTo: responseTo || null,
+                imageUrl: imageUrl || null
             };
 
             // Create message instance
@@ -129,7 +132,7 @@ class MessageController {
 
             // Update conversation
             conversation.lastMessage = {
-                message: message.trim(),
+                message: message ? message.trim() : (imageUrl ? '[Image]' : 'No message'),
                 senderType: senderType,
                 timestamp: newMessage.timestamp,
                 isRead: false
@@ -171,7 +174,8 @@ class MessageController {
                 senderType: newMessage.senderType,
                 location: newMessage.location,
                 timestamp: newMessage.timestamp,
-                isEmergency: newMessage.isEmergency
+                isEmergency: newMessage.isEmergency,
+                imageUrl: newMessage.imageUrl
             };
 
             if (senderType === 'driver') {
@@ -468,6 +472,95 @@ class MessageController {
         } catch (error) {
             console.error('Error in getMessageStats:', error);
             errorResponse(res, error.message, 500);
+        }
+    });
+
+    // Upload message image
+    static uploadMessageImage = catchAsync(async (req, res) => {
+        try {
+            // Check if file was uploaded
+            if (!req.file) {
+                return errorResponse(res, 'No image file provided', 400);
+            }
+
+            // Validate the image file
+            const validation = CloudinaryService.validateImage(req.file);
+            if (!validation.valid) {
+                return errorResponse(res, validation.error, 400);
+            }
+
+            console.log('📸 Uploading message image...', {
+                originalName: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size
+            });
+
+            // Upload to Cloudinary
+            const uploadResult = await CloudinaryService.uploadImage(req.file, 'message-images');
+
+            if (!uploadResult.success) {
+                console.error('❌ Cloudinary upload failed:', uploadResult.error);
+                return errorResponse(res, 'Failed to upload image: ' + uploadResult.error, 500);
+            }
+
+            console.log('✅ Message image uploaded successfully:', uploadResult.url);
+
+            return successResponse(res, {
+                imageUrl: uploadResult.url,
+                publicId: uploadResult.public_id,
+                width: uploadResult.width,
+                height: uploadResult.height,
+                bytes: uploadResult.bytes
+            }, 'Image uploaded successfully');
+
+        } catch (error) {
+            console.error('❌ Message image upload error:', error);
+            return errorResponse(res, 'Failed to upload image: ' + error.message, 500);
+        }
+    });
+
+    // Delete message image
+    static deleteMessageImage = catchAsync(async (req, res) => {
+        try {
+            const { imageUrl } = req.body;
+
+            if (!imageUrl) {
+                return errorResponse(res, 'Image URL is required', 400);
+            }
+
+            // Extract public_id from Cloudinary URL
+            let publicId = null;
+            if (imageUrl.includes('cloudinary.com')) {
+                const urlParts = imageUrl.split('/');
+                const filename = urlParts[urlParts.length - 1];
+                const folder = urlParts[urlParts.length - 2];
+                publicId = `${folder}/${filename.split('.')[0]}`;
+            }
+
+            if (!publicId) {
+                return errorResponse(res, 'Invalid image URL', 400);
+            }
+
+            console.log('🗑️ Deleting message image:', publicId);
+
+            // Delete from Cloudinary
+            const deleteResult = await CloudinaryService.deleteImage(publicId);
+
+            if (!deleteResult.success) {
+                console.error('❌ Cloudinary delete failed:', deleteResult.error);
+                return errorResponse(res, 'Failed to delete image: ' + deleteResult.error, 500);
+            }
+
+            console.log('✅ Message image deleted successfully');
+
+            return successResponse(res, {
+                deleted: true,
+                publicId: publicId
+            }, 'Image deleted successfully');
+
+        } catch (error) {
+            console.error('❌ Message image delete error:', error);
+            return errorResponse(res, 'Failed to delete image: ' + error.message, 500);
         }
     });
 }
