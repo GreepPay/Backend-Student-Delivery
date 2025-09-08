@@ -51,6 +51,9 @@ class ConversationController {
         // Filter by status
         if (status === 'all') {
             query.status = { $in: ['active', 'waiting', 'resolved'] };
+        } else if (status === 'active') {
+            // Include both 'active' and 'waiting' conversations for the default 'active' filter
+            query.status = { $in: ['active', 'waiting'] };
         } else {
             query.status = status;
         }

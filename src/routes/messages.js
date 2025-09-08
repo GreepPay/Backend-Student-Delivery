@@ -19,7 +19,12 @@ const messageSchemas = {
         responseTo: Joi.string().optional(),
         driverId: Joi.string().when('$userType', {
             is: 'admin',
-            then: Joi.required(),
+            then: Joi.optional(), // driverId is optional for admin messages
+            otherwise: Joi.forbidden()
+        }),
+        conversationId: Joi.string().when('$userType', {
+            is: 'admin',
+            then: Joi.optional(), // conversationId is optional for admin messages
             otherwise: Joi.forbidden()
         })
     }),
@@ -51,6 +56,7 @@ router.use(authenticateToken);
 
 // Send a new message
 router.post('/send',
+    authenticateToken,
     validate(messageSchemas.sendMessage),
     MessageController.sendMessage
 );

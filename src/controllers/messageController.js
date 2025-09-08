@@ -61,13 +61,40 @@ class MessageController {
                     await conversation.save();
                 }
             } else if (senderType === 'admin') {
-                // For admin messages, conversationId should be provided
-                if (!req.body.conversationId) {
-                    return errorResponse(res, 'Conversation ID is required for admin messages', 400);
-                }
-                conversation = await Conversation.findById(req.body.conversationId);
-                if (!conversation) {
-                    return errorResponse(res, 'Conversation not found', 404);
+                // For admin messages, find or create conversation
+                if (req.body.conversationId && !req.body.conversationId.startsWith('temp-')) {
+                    // Use provided conversationId (only if it's not a temporary ID)
+                    conversation = await Conversation.findById(req.body.conversationId);
+                    if (!conversation) {
+                        return errorResponse(res, 'Conversation not found', 404);
+                    }
+                    // Set driverId from the conversation if not provided
+                    if (!driverId) {
+                        driverId = conversation.driverId;
+                    }
+                } else {
+                    // Neither conversationId nor driverId provided - this is an error for admin messages
+                    if (!driverId) {
+                        return errorResponse(res, 'Either driverId or conversationId is required for admin messages', 400);
+                    }
+
+                    // Find existing conversation or create new one
+                    conversation = await Conversation.findOne({
+                        driverId: driverId,
+                        status: { $in: ['active', 'waiting'] }
+                    });
+
+                    if (!conversation) {
+                        // Create new conversation for admin message
+                        conversation = new Conversation({
+                            driverId: driverId,
+                            subject: 'Admin message',
+                            status: 'active',
+                            priority: 'normal',
+                            tags: [type]
+                        });
+                        await conversation.save();
+                    }
                 }
             }
 
