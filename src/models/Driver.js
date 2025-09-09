@@ -635,9 +635,9 @@ driverSchema.virtual('accountStatus').get(function () {
     };
 });
 
-// Static method to find driver by email (allows inactive drivers to login)
+// Static method to find active driver by email
 driverSchema.statics.findActiveByEmail = function (email) {
-    return this.findOne({ email });
+    return this.findOne({ email, isActive: true });
 };
 
 // Static method to get drivers by area

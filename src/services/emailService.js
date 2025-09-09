@@ -16,7 +16,7 @@ class EmailService {
       });
       this.emailProvider = 'zeptomail';
       // Use custom FROM email if set, otherwise use the SMTP user
-      this.fromEmail = process.env.FROM_EMAIL || process.env.EMAIL_USER;
+      this.fromEmail = process.env.FROM_EMAIL || process.env.ZEPTO_MAIL_USER;
     } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
       // Use Gmail as fallback
       this.transporter = nodemailer.createTransport({
@@ -1004,44 +1004,6 @@ Greep SDS Team
     }
   }
 
-  // Send admin invitation email
-  async sendAdminInvitation(adminEmail, adminName, invitedBy, tempPassword) {
-    try {
-      const subject = `Admin Invitation - Greep SDS`;
-
-      const htmlContent = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #2c3e50;">Admin Invitation</h2>
-              
-              <p>Dear ${adminName},</p>
-              
-              <p>You have been invited to join the Greep SDS admin team by ${invitedBy}.</p>
-              
-              <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                  <h3 style="color: #2c3e50; margin-top: 0;">Your Login Credentials:</h3>
-                  <ul style="list-style: none; padding: 0;">
-                      <li><strong>Email:</strong> ${adminEmail}</li>
-                      <li><strong>Temporary Password:</strong> ${tempPassword}</li>
-                  </ul>
-              </div>
-              
-              <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
-              
-              <p>You can access the admin panel at: <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin">Admin Panel</a></p>
-              
-              <p>If you have any questions, please contact the system administrator.</p>
-              
-              <p>Best regards,<br>Greep SDS Team</p>
-          </div>
-      `;
-
-      await this.sendEmail(adminEmail, subject, htmlContent);
-      console.log(`Admin invitation email sent to ${adminEmail}`);
-    } catch (error) {
-      console.error('Error sending admin invitation email:', error);
-      throw error;
-    }
-  }
 
   // Send admin password reset email
   async sendAdminPasswordReset(adminEmail, adminName, tempPassword) {
