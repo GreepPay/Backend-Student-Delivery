@@ -87,18 +87,13 @@ class AdminManagementController {
                 });
             }
 
-            // Generate temporary password
-            const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-            const hashedPassword = await bcrypt.hash(tempPassword, 12);
-
-            // Create admin
+            // Create admin (OTP-based authentication, no password needed)
             const admin = new Admin({
                 email,
                 name,
                 role,
                 permissions: permissions || ['create_delivery', 'edit_delivery', 'delete_delivery', 'manage_drivers', 'view_analytics'],
-                createdBy: user.id,
-                password: hashedPassword
+                createdBy: user.id
             });
 
             await admin.save();
@@ -106,7 +101,7 @@ class AdminManagementController {
             // Send invitation email if requested
             if (sendInvitation) {
                 try {
-                    await EmailService.sendAdminInvitation(email, name, user.name, tempPassword);
+                    await EmailService.sendAdminInvitation(email, name, user.name);
                 } catch (emailError) {
                     console.error('Failed to send admin invitation email:', emailError);
                 }
