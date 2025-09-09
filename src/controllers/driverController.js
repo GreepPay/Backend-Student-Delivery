@@ -259,6 +259,13 @@ class DriverController {
                 // Don't fail driver creation if referral creation fails
             }
 
+            // Create admin notification for new driver registration
+            try {
+                await AdminNotificationService.createNewDriverNotification(newDriver._id);
+            } catch (notificationError) {
+                console.error('Failed to create new driver notification:', notificationError.message);
+            }
+
             // Send invitation email
             try {
                 await EmailService.sendDriverInvitation(email, fullName, user.fullName);
@@ -842,13 +849,8 @@ class DriverController {
 
             console.log('Driver active status updated in database:', updatedDriver);
 
-            // Create admin notification for driver active status change
-            try {
-                const status = updatedDriver.isActive ? 'active' : 'inactive';
-                await AdminNotificationService.createDriverStatusNotification(driverId, status);
-            } catch (notificationError) {
-                console.error('Failed to create driver active status notification:', notificationError.message);
-            }
+            // Note: Driver active/inactive status changes are too frequent and not actionable.
+            // Removed admin notification to reduce notification noise.
 
             // Emit real-time update to admin panel
             console.log('Emitting socket event for driver active status update...');
@@ -921,13 +923,8 @@ class DriverController {
 
             console.log('Driver status updated in database:', updatedDriver);
 
-            // Create admin notification for driver status change
-            try {
-                const status = updatedDriver.isActive ? 'active' : 'inactive';
-                await AdminNotificationService.createDriverStatusNotification(driverId, status);
-            } catch (notificationError) {
-                console.error('Failed to create driver status notification:', notificationError.message);
-            }
+            // Note: Driver active/inactive status changes are too frequent and not actionable.
+            // Removed admin notification to reduce notification noise.
 
             // Emit real-time update to admin panel
             console.log('Emitting socket event for driver status update...');

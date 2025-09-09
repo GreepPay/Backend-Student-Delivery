@@ -178,6 +178,14 @@ class DriverInvitationService {
 
             await driver.save();
 
+            // Create admin notification for new driver registration
+            try {
+                const AdminNotificationService = require('./adminNotificationService');
+                await AdminNotificationService.createNewDriverNotification(driver._id);
+            } catch (notificationError) {
+                console.error('Failed to create new driver notification:', notificationError.message);
+            }
+
             // Handle referral code if present
             if (invitation.referralCode) {
                 try {
