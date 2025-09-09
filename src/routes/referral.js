@@ -8,6 +8,8 @@ const { validate, schemas } = require('../middleware/validation');
 router.get('/driver/:driverId/stats', authenticateToken, driverOnly, ReferralController.getReferralStats);
 router.get('/driver/:driverId/code', authenticateToken, driverOnly, ReferralController.getDriverReferralCode);
 router.get('/driver/:driverId/points', authenticateToken, driverOnly, ReferralController.getDriverPoints);
+router.get('/driver/:driverId/points/history', authenticateToken, driverOnly, ReferralController.getDriverPointsHistory);
+router.post('/driver/:driverId/points/redeem', authenticateToken, driverOnly, ReferralController.redeemPoints);
 router.post('/driver/:driverId/generate', authenticateToken, driverOnly, ReferralController.generateReferralCode);
 router.post('/driver/:driverId/use', authenticateToken, driverOnly, validate(schemas.validateReferralCode), ReferralController.useReferralCode);
 router.put('/driver/:driverId/progress', authenticateToken, driverOnly, ReferralController.updateReferralProgress);

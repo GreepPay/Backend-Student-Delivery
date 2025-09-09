@@ -53,17 +53,8 @@ class DriverRatingService {
             await Driver.findByIdAndUpdate(driverId, { rating: rating.finalRating });
 
             // Create notification if rating changed significantly (more than 0.5 difference)
-            if (Math.abs(rating.finalRating - oldRating) >= 0.5) {
-                try {
-                    await AdminNotificationService.createRatingUpdateNotification(
-                        driverId,
-                        oldRating,
-                        rating.finalRating
-                    );
-                } catch (notificationError) {
-                    console.error('Failed to create rating update notification:', notificationError.message);
-                }
-            }
+            // Note: Individual rating update notifications removed to reduce noise.
+            // Consider implementing weekly rating summary notifications instead.
 
             return rating;
         } catch (error) {

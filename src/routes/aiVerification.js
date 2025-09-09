@@ -12,41 +12,41 @@ router.use(authenticateToken);
 // Validation schemas for AI verification
 const aiVerificationSchemas = {
     verifyDocument: Joi.object({
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required(),
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required(),
         documentUrl: Joi.string().uri().required(),
         driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
     }),
 
     classifyDocument: Joi.object({
         documentUrl: Joi.string().uri().required(),
-        expectedType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        expectedType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     }),
 
     extractText: Joi.object({
         documentUrl: Joi.string().uri().required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     }),
 
     detectFace: Joi.object({
         documentUrl: Joi.string().uri().required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     }),
 
     verifyAuthenticity: Joi.object({
         documentUrl: Joi.string().uri().required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     }),
 
     detectFraud: Joi.object({
         documentUrl: Joi.string().uri().required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     }),
 
     verifyBatch: Joi.object({
         documents: Joi.array().items(
             Joi.object({
                 documentId: Joi.string().required(),
-                documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required(),
+                documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required(),
                 documentUrl: Joi.string().uri().required(),
                 driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required()
             })

@@ -304,7 +304,7 @@ router.put('/drivers/:driverId/documents/:documentType',
     requirePermission('manage_drivers'),
     validateParams(Joi.object({
         driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     })),
     validate(Joi.object({
         status: Joi.string().valid('pending', 'verified', 'rejected').required(),
@@ -527,7 +527,7 @@ router.get('/documents',
     requirePermission('manage_drivers'),
     validateQuery(Joi.object({
         status: Joi.string().valid('pending', 'verified', 'rejected', 'ai_processing', 'all').default('pending'),
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'),
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto'),
         page: Joi.number().integer().min(1).default(1),
         limit: Joi.number().integer().min(1).max(100).default(20)
     })),

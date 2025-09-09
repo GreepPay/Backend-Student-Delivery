@@ -178,10 +178,19 @@ class DriverInvitationService {
 
             await driver.save();
 
+            // Create admin notification for new driver registration
+            try {
+                const AdminNotificationService = require('./adminNotificationService');
+                await AdminNotificationService.createNewDriverNotification(driver._id);
+            } catch (notificationError) {
+                console.error('Failed to create new driver notification:', notificationError.message);
+            }
+
             // Handle referral code if present
             if (invitation.referralCode) {
                 try {
                     const InvitationReferralCode = require('../models/InvitationReferralCode');
+                    const Referral = require('../models/Referral');
 
                     // Find the referral code record
                     const referralCodeRecord = await InvitationReferralCode.findOne({
@@ -193,7 +202,44 @@ class DriverInvitationService {
                         // Record usage of the referral code (reusable)
                         await referralCodeRecord.recordUsage(driver._id, driver.name, driver.email);
 
+                        // Create a proper Referral record for the referral system
+                        const referral = new Referral({
+                            referrer: referralCodeRecord.referrer,
+                            referred: driver._id,
+                            referralCode: invitation.referralCode,
+                            status: 'completed', // Mark as completed since driver is already added
+                            completionCriteria: {
+                                referredDeliveries: 0, // No delivery requirement for admin-invited drivers
+                                referredEarnings: 0,
+                                timeLimit: 0
+                            },
+                            progress: {
+                                completedDeliveries: 0,
+                                totalEarnings: 0,
+                                daysRemaining: 0
+                            },
+                            rewards: {
+                                referrer: 15, // Points for referrer
+                                referred: 5   // Points for referred person
+                            },
+                            completedAt: new Date()
+                        });
+
+                        await referral.save();
+
+                        // Award points to both drivers
+                        await Promise.all([
+                            Driver.findByIdAndUpdate(referralCodeRecord.referrer, {
+                                $inc: { referralPoints: 15 }
+                            }),
+                            Driver.findByIdAndUpdate(driver._id, {
+                                $inc: { referralPoints: 5 }
+                            })
+                        ]);
+
                         console.log(`Referral code ${invitation.referralCode} usage recorded for driver ${driver._id}`);
+                        console.log(`Created referral record: ${referral._id}`);
+                        console.log(`Awarded 15 points to referrer and 5 points to referred driver`);
                         console.log(`Total uses for ${referralCodeRecord.referralCode}: ${referralCodeRecord.totalUses}`);
                     }
                 } catch (referralError) {

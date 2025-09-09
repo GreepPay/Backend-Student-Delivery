@@ -90,25 +90,9 @@ class AdminNotificationService {
 
             switch (status) {
                 case 'assigned':
-                    notificationData = {
-                        ...notificationData,
-                        type: 'delivery_assigned',
-                        title: 'Delivery Assigned',
-                        message: `Delivery ${delivery.deliveryCode} assigned to ${delivery.assignedTo?.name}`,
-                        priority: 'medium',
-                        sound: 'assignment'
-                    };
-                    break;
                 case 'picked_up':
-                    notificationData = {
-                        ...notificationData,
-                        type: 'delivery_picked_up',
-                        title: 'Delivery Picked Up',
-                        message: `${delivery.assignedTo?.name} picked up delivery ${delivery.deliveryCode}`,
-                        priority: 'medium',
-                        sound: 'pickup'
-                    };
-                    break;
+                    // Skip notifications for assigned/picked_up - too frequent and not actionable
+                    return null;
                 case 'delivered':
                     notificationData = {
                         ...notificationData,
@@ -129,6 +113,9 @@ class AdminNotificationService {
                         sound: 'alert'
                     };
                     break;
+                default:
+                    // Skip other status changes
+                    return null;
             }
 
             return await this.createAdminNotification(notificationData);

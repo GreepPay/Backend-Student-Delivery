@@ -47,6 +47,37 @@ class SocketService {
                     console.log(`✅ Authentication confirmed for ${userType} ${userId}`);
                 });
 
+                // Handle messaging events
+                socket.on('driver-message', (data) => {
+                    console.log('💬 Driver message received:', data);
+                    // This will be handled by the MessageController
+                    // Just log for now
+                });
+
+                socket.on('admin-message', (data) => {
+                    console.log('💬 Admin message received:', data);
+                    // This will be handled by the MessageController
+                    // Just log for now
+                });
+
+                socket.on('typing-start', (data) => {
+                    const { userId, userType } = this.connectedUsers.get(socket.id) || {};
+                    if (userType === 'admin') {
+                        socket.to('drivers-room').emit('admin-typing', { isTyping: true, adminId: userId });
+                    } else if (userType === 'driver') {
+                        socket.to('admin-room').emit('driver-typing', { isTyping: true, driverId: userId });
+                    }
+                });
+
+                socket.on('typing-stop', (data) => {
+                    const { userId, userType } = this.connectedUsers.get(socket.id) || {};
+                    if (userType === 'admin') {
+                        socket.to('drivers-room').emit('admin-typing', { isTyping: false, adminId: userId });
+                    } else if (userType === 'driver') {
+                        socket.to('admin-room').emit('driver-typing', { isTyping: false, driverId: userId });
+                    }
+                });
+
                 // Handle driver status updates
                 socket.on('driver-status-update', (data) => {
                     const { driverId, isOnline, lastLogin } = data;
@@ -539,6 +570,67 @@ class SocketService {
         } catch (error) {
             console.error('❌ Error emitting emergency alert toast:', error);
         }
+    }
+
+    // Messaging methods
+    emitToAdmins(event, data) {
+        try {
+            if (this.io) {
+                this.io.to('admin-room').emit(event, data);
+                console.log(`📤 Emitted ${event} to admin room:`, data);
+            }
+        } catch (error) {
+            console.error(`❌ Error emitting ${event} to admins:`, error);
+        }
+    }
+
+    emitToDriver(driverId, event, data) {
+        try {
+            if (this.io) {
+                this.io.to(`driver-${driverId}`).emit(event, data);
+                console.log(`📤 Emitted ${event} to driver ${driverId}:`, data);
+            }
+        } catch (error) {
+            console.error(`❌ Error emitting ${event} to driver ${driverId}:`, error);
+        }
+    }
+
+    emitToAllDrivers(event, data) {
+        try {
+            if (this.io) {
+                this.io.to('drivers-room').emit(event, data);
+                console.log(`📤 Emitted ${event} to all drivers:`, data);
+            }
+        } catch (error) {
+            console.error(`❌ Error emitting ${event} to all drivers:`, error);
+        }
+    }
+
+    // Get connected users count
+    getConnectedUsersCount() {
+        return this.connectedUsers.size;
+    }
+
+    // Get connected admins count
+    getConnectedAdminsCount() {
+        let count = 0;
+        for (const [socketId, user] of this.connectedUsers) {
+            if (user.userType === 'admin') {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    // Get connected drivers count
+    getConnectedDriversCount() {
+        let count = 0;
+        for (const [socketId, user] of this.connectedUsers) {
+            if (user.userType === 'driver') {
+                count++;
+            }
+        }
+        return count;
     }
 }
 

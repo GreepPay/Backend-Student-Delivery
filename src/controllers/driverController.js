@@ -205,6 +205,67 @@ class DriverController {
                 addedBy: user.id
             });
 
+            // Create referral record if driver was added by another driver (not admin)
+            try {
+                const Referral = require('../models/Referral');
+                const ReferralService = require('../services/referralService');
+
+                // Check if the person adding the driver is a driver (not admin)
+                const Admin = require('../models/Admin');
+                const isAdmin = await Admin.findById(user.id);
+
+                if (!isAdmin) {
+                    // The person adding is a driver, create a referral record
+                    const referralCode = await Referral.generateReferralCode(user.id, user.name);
+
+                    const referral = new Referral({
+                        referrer: user.id,
+                        referred: newDriver._id,
+                        referralCode: referralCode,
+                        status: 'completed', // Mark as completed since driver is already added
+                        completionCriteria: {
+                            referredDeliveries: 0, // No delivery requirement for admin-added drivers
+                            referredEarnings: 0,
+                            timeLimit: 0
+                        },
+                        progress: {
+                            completedDeliveries: 0,
+                            totalEarnings: 0,
+                            daysRemaining: 0
+                        },
+                        rewards: {
+                            referrer: 15, // Points for referrer
+                            referred: 5   // Points for referred person
+                        },
+                        completedAt: new Date()
+                    });
+
+                    await referral.save();
+
+                    // Award points to both drivers
+                    await Promise.all([
+                        Driver.findByIdAndUpdate(user.id, {
+                            $inc: { referralPoints: 15 }
+                        }),
+                        Driver.findByIdAndUpdate(newDriver._id, {
+                            $inc: { referralPoints: 5 }
+                        })
+                    ]);
+
+                    console.log(`Referral created for admin-added driver: ${newDriver.name} by ${user.name}`);
+                }
+            } catch (referralError) {
+                console.error('Failed to create referral record for admin-added driver:', referralError);
+                // Don't fail driver creation if referral creation fails
+            }
+
+            // Create admin notification for new driver registration
+            try {
+                await AdminNotificationService.createNewDriverNotification(newDriver._id);
+            } catch (notificationError) {
+                console.error('Failed to create new driver notification:', notificationError.message);
+            }
+
             // Send invitation email
             try {
                 await EmailService.sendDriverInvitation(email, fullName, user.fullName);
@@ -788,13 +849,8 @@ class DriverController {
 
             console.log('Driver active status updated in database:', updatedDriver);
 
-            // Create admin notification for driver active status change
-            try {
-                const status = updatedDriver.isActive ? 'active' : 'inactive';
-                await AdminNotificationService.createDriverStatusNotification(driverId, status);
-            } catch (notificationError) {
-                console.error('Failed to create driver active status notification:', notificationError.message);
-            }
+            // Note: Driver active/inactive status changes are too frequent and not actionable.
+            // Removed admin notification to reduce notification noise.
 
             // Emit real-time update to admin panel
             console.log('Emitting socket event for driver active status update...');
@@ -867,13 +923,8 @@ class DriverController {
 
             console.log('Driver status updated in database:', updatedDriver);
 
-            // Create admin notification for driver status change
-            try {
-                const status = updatedDriver.isActive ? 'active' : 'inactive';
-                await AdminNotificationService.createDriverStatusNotification(driverId, status);
-            } catch (notificationError) {
-                console.error('Failed to create driver status notification:', notificationError.message);
-            }
+            // Note: Driver active/inactive status changes are too frequent and not actionable.
+            // Removed admin notification to reduce notification noise.
 
             // Emit real-time update to admin panel
             console.log('Emitting socket event for driver status update...');
@@ -1650,7 +1701,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+            const validDocuments = ['studentId', 'profilePhoto', 'passportPhoto'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1708,7 +1759,7 @@ class DriverController {
             }
 
             // Validate document type
-            const validDocuments = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+            const validDocuments = ['studentId', 'profilePhoto', 'passportPhoto'];
             if (!validDocuments.includes(documentType)) {
                 return res.status(400).json({
                     success: false,
@@ -1777,16 +1828,16 @@ class DriverController {
             const savedDriver = await driver.save();
 
             console.log('✅ Driver saved successfully:', savedDriver._id);
-            console.log('✅ Document URL saved:', savedDriver.documents[documentType].documentUrl);
+            console.log('✅ Document URL saved:', savedDriver?.documents?.[documentType]?.documentUrl);
 
             // Verify the save worked
             const verificationDriver = await Driver.findById(user.id);
-            console.log('🔍 Verification - Document URL:', verificationDriver.documents[documentType].documentUrl);
+            console.log('🔍 Verification - Document URL:', verificationDriver?.documents?.[documentType]?.documentUrl);
 
             successResponse(res, {
                 documentType,
                 status: 'pending',
-                uploadDate: savedDriver.documents[documentType].uploadDate,
+                uploadDate: savedDriver?.documents?.[documentType]?.uploadDate,
                 documentUrl: uploadResult.url,
                 message: 'Document uploaded successfully and pending verification'
             }, 'Document uploaded successfully and pending verification');
@@ -1828,6 +1879,53 @@ class DriverController {
 
         } catch (error) {
             console.error('Verification status update error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
+    // Force refresh verification status (for drivers to sync their status)
+    static refreshVerificationStatus = catchAsync(async (req, res) => {
+        const { user } = req;
+
+        try {
+            const driver = await Driver.findById(user.id);
+            if (!driver) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Driver not found'
+                });
+            }
+
+            // Check if all required documents are verified
+            const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
+                driver.documents?.profilePhoto?.status === 'verified' &&
+                driver.documents?.passportPhoto?.status === 'verified';
+
+            // Update isDocumentVerified field if it's different
+            let wasUpdated = false;
+            if (driver.isDocumentVerified !== allDocumentsVerified) {
+                driver.isDocumentVerified = allDocumentsVerified;
+                await driver.save();
+                wasUpdated = true;
+                console.log(`✅ Updated verification status for driver ${driver.email}: ${allDocumentsVerified}`);
+            }
+
+            // Get fresh verification status
+            const verificationStatus = driver.verificationStatus;
+            const accountStatus = driver.accountStatus;
+            const profileCompletion = driver.profileCompletion;
+
+            successResponse(res, {
+                verificationStatus,
+                accountStatus,
+                profileCompletion,
+                isDocumentVerified: driver.isDocumentVerified,
+                wasUpdated,
+                message: wasUpdated ? 'Verification status updated successfully' : 'Verification status is already up to date'
+            }, 'Verification status refreshed successfully');
+
+        } catch (error) {
+            console.error('Error refreshing verification status:', error);
             errorResponse(res, error, 500);
         }
     });

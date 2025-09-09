@@ -110,6 +110,20 @@ router.put('/status',
     DriverController.updateDriverStatus
 );
 
+// Force refresh verification status
+router.post('/refresh-verification',
+    DriverController.refreshVerificationStatus
+);
+
+// Alternative endpoints that frontend might be calling
+router.post('/status/verify',
+    DriverController.refreshVerificationStatus
+);
+
+router.post('/verify-status',
+    DriverController.refreshVerificationStatus
+);
+
 // Driver analytics and earnings
 router.get('/analytics',
     validateQuery(schemas.analyticsQuery),
@@ -172,7 +186,7 @@ router.put('/deliveries/:deliveryId/status',
         req.params.id = req.params.deliveryId;
         next();
     },
-    DriverController.updateDeliveryStatus
+    DeliveryController.updateDeliveryStatus
 );
 
 // Driver notifications
@@ -240,7 +254,7 @@ router.post('/documents/upload',
         }
 
         // Validate document type
-        const validTypes = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+        const validTypes = ['studentId', 'profilePhoto', 'passportPhoto'];
         if (!validTypes.includes(documentType)) {
             return res.status(400).json({
                 success: false,
@@ -259,7 +273,7 @@ router.post('/documents/:documentType/upload',
     uploadDocument,
     handleUploadError,
     validateParams(Joi.object({
-        documentType: Joi.string().valid('studentId', 'profilePhoto', 'universityEnrollment', 'identityCard').required()
+        documentType: Joi.string().valid('studentId', 'profilePhoto', 'passportPhoto').required()
     })),
     DriverController.uploadDocument
 );
