@@ -133,44 +133,45 @@ router.post('/admin/send-message', authenticateToken, adminOnly, validate(schema
     }
 });
 
-// Send message from driver to admin
+// DEPRECATED: Send message from driver to admin
+// This route has been replaced by the new messaging system at /api/messages/send
+// Keeping for backward compatibility but redirecting to new system
 router.post('/driver/send-message', authenticateToken, driverOnly, validate(schemas.sendMessage), async (req, res) => {
-
     try {
         const { adminId, message } = req.body;
         const driverId = req.user.id;
 
-        // If no specific adminId is provided, send to all admins
-        if (!adminId) {
-            await NotificationService.sendDriverMessageToAllAdmins(message, driverId);
+        // Redirect to new messaging system
+        const MessageController = require('../controllers/messageController');
 
-            res.json({
-                success: true,
-                message: 'Message sent to all admins successfully',
-                data: {
-                    message,
-                    timestamp: new Date().toISOString()
-                }
-            });
-        } else {
-            // Send to specific admin
-            await NotificationService.sendDriverMessage(adminId, message, driverId);
+        // Create a mock request object for the new controller
+        const mockReq = {
+            body: {
+                message: message,
+                type: 'general'
+            },
+            user: {
+                id: driverId,
+                userType: 'driver'
+            }
+        };
 
-            res.json({
-                success: true,
-                message: 'Message sent successfully',
-                data: {
-                    adminId,
-                    message,
-                    timestamp: new Date().toISOString()
-                }
-            });
-        }
+        // Create a mock response object
+        const mockRes = {
+            status: (code) => ({
+                json: (data) => res.status(code).json(data)
+            }),
+            json: (data) => res.json(data)
+        };
+
+        // Call the new messaging controller
+        await MessageController.sendMessage(mockReq, mockRes);
+
     } catch (error) {
-        console.error('Error sending driver message:', error);
+        console.error('❌ Error redirecting to new messaging system:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to send message'
+            error: 'Failed to send message. Please use the new messaging system at /api/messages/send'
         });
     }
 });

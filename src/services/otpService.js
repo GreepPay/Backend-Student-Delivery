@@ -48,14 +48,8 @@ class OTPService {
             // Update last login
             await this.updateLastLogin(userData._id, userType);
 
-            // Create admin notification for new driver registration
-            if (userType === 'driver') {
-                try {
-                    await AdminNotificationService.createNewDriverNotification(userData._id);
-                } catch (notificationError) {
-                    console.error('Failed to create new driver notification:', notificationError.message);
-                }
-            }
+            // Note: New driver notifications are sent when drivers are actually created,
+            // not on every login. This prevents spam notifications.
 
             return {
                 success: true,

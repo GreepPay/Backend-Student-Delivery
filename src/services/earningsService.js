@@ -95,16 +95,8 @@ class EarningsService {
 
             for (const milestone of milestones) {
                 if (currentEarnings >= milestone && !driver.achievedMilestones?.includes(milestone)) {
-                    // Create milestone notification
-                    try {
-                        await AdminNotificationService.createEarningsMilestoneNotification(
-                            driverId,
-                            currentEarnings,
-                            `₺${milestone}`
-                        );
-                    } catch (notificationError) {
-                        console.error('Failed to create earnings milestone notification:', notificationError.message);
-                    }
+                    // Note: Individual earnings milestone notifications removed to reduce noise.
+                    // Consider implementing weekly earnings summary notifications instead.
 
                     // Update driver's achieved milestones
                     const achievedMilestones = driver.achievedMilestones || [];

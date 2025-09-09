@@ -3,7 +3,11 @@ const Joi = require('joi');
 // Validation middleware
 const validate = (schema) => {
     return (req, res, next) => {
-        const { error } = schema.validate(req.body);
+        const { error } = schema.validate(req.body, {
+            context: {
+                userType: req.user?.userType
+            }
+        });
         if (error) {
             return res.status(400).json({
                 success: false,
@@ -16,7 +20,11 @@ const validate = (schema) => {
 
 const validateBody = (schema) => {
     return (req, res, next) => {
-        const { error } = schema.validate(req.body);
+        const { error } = schema.validate(req.body, {
+            context: {
+                userType: req.user?.userType
+            }
+        });
         if (error) {
             return res.status(400).json({
                 success: false,

@@ -189,72 +189,82 @@ class NotificationService {
         }
     }
 
-    // Send driver message to admin
+    // DEPRECATED: Send driver message to admin
+    // This method has been replaced by the new messaging system
+    // Keeping for backward compatibility but redirecting to new system
     static async sendDriverMessage(adminId, message, driverId) {
         try {
-            const driver = await Driver.findById(driverId);
-            const admin = await Admin.findById(adminId);
+            console.log('⚠️ DEPRECATED: sendDriverMessage called. Please use the new messaging system at /api/messages/send');
 
-            if (!driver || !admin) {
-                throw new Error('Driver or Admin not found');
-            }
+            // Redirect to new messaging system
+            const MessageController = require('../controllers/messageController');
 
-            await this.createAndEmitNotification({
-                recipient: adminId,
-                recipientModel: 'Admin',
-                type: 'driver-message',
-                title: `Message from ${driver.name}`,
-                message: message,
-                data: {
-                    driverId: driverId,
-                    driverName: driver.name,
-                    driverArea: driver.area,
-                    timestamp: new Date()
+            // Create a mock request object for the new controller
+            const mockReq = {
+                body: {
+                    message: message,
+                    type: 'general'
                 },
-                priority: 'high'
-            });
+                user: {
+                    id: driverId,
+                    userType: 'driver'
+                }
+            };
 
-            console.log(`💬 Driver message sent to admin ${admin.name}`);
+            // Create a mock response object
+            const mockRes = {
+                status: (code) => ({
+                    json: (data) => ({ success: data.success })
+                }),
+                json: (data) => ({ success: data.success })
+            };
+
+            // Call the new messaging controller
+            await MessageController.sendMessage(mockReq, mockRes);
+
+            console.log(`💬 Driver message redirected to new messaging system`);
         } catch (error) {
-            console.error('❌ Error sending driver message:', error);
+            console.error('❌ Error redirecting driver message to new system:', error);
             throw error;
         }
     }
 
+    // DEPRECATED: Send driver message to all admins
+    // This method has been replaced by the new messaging system
+    // Keeping for backward compatibility but redirecting to new system
     static async sendDriverMessageToAllAdmins(message, driverId) {
         try {
-            const driver = await Driver.findById(driverId);
-            if (!driver) {
-                throw new Error('Driver not found');
-            }
+            console.log('⚠️ DEPRECATED: sendDriverMessageToAllAdmins called. Please use the new messaging system at /api/messages/send');
 
-            // Find all active admins
-            const admins = await Admin.find({ isActive: true });
-            if (admins.length === 0) {
-                throw new Error('No active admins found');
-            }
+            // Redirect to new messaging system
+            const MessageController = require('../controllers/messageController');
 
-            // Send message to all admins
-            for (const admin of admins) {
-                await this.createAndEmitNotification({
-                    recipient: admin._id,
-                    recipientModel: 'Admin',
-                    type: 'driver-message',
-                    title: `Message from ${driver.name}`,
+            // Create a mock request object for the new controller
+            const mockReq = {
+                body: {
                     message: message,
-                    data: {
-                        driverId: driverId,
-                        driverName: driver.name,
-                        driverArea: driver.area,
-                        timestamp: new Date()
-                    },
-                    priority: 'high'
-                });
-            }
+                    type: 'general'
+                },
+                user: {
+                    id: driverId,
+                    userType: 'driver'
+                }
+            };
 
-            console.log(`💬 Driver message sent to all ${admins.length} admins`);
+            // Create a mock response object
+            const mockRes = {
+                status: (code) => ({
+                    json: (data) => ({ success: data.success })
+                }),
+                json: (data) => ({ success: data.success })
+            };
+
+            // Call the new messaging controller
+            await MessageController.sendMessage(mockReq, mockRes);
+
+            console.log(`💬 Driver message redirected to new messaging system`);
         } catch (error) {
-            console.error('❌ Error sending driver message to all admins:', error);
+            console.error('❌ Error redirecting driver message to new system:', error);
             throw error;
         }
     }

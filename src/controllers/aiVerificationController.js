@@ -61,8 +61,7 @@ class AIVerificationController {
                 // Check if all required documents are now verified
                 const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
                     driver.documents?.profilePhoto?.status === 'verified' &&
-                    driver.documents?.identityCard?.status === 'verified' &&
-                    driver.documents?.universityEnrollment?.status === 'verified';
+                    driver.documents?.passportPhoto?.status === 'verified';
 
                 // Update isDocumentVerified field
                 driver.isDocumentVerified = allDocumentsVerified;
@@ -285,7 +284,7 @@ class AIVerificationController {
     // Helper methods for AI processing (simulated for now)
     static async performDocumentClassification(documentUrl, expectedType) {
         // Simulate AI classification
-        const types = ['studentId', 'profilePhoto', 'universityEnrollment', 'identityCard'];
+        const types = ['studentId', 'profilePhoto', 'passportPhoto'];
         const detectedType = types[Math.floor(Math.random() * types.length)];
 
         return {

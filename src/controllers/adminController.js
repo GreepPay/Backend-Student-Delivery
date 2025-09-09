@@ -1214,8 +1214,7 @@ class AdminController {
             // Check if all required documents are now verified
             const allDocumentsVerified = driver.documents?.studentId?.status === 'verified' &&
                 driver.documents?.profilePhoto?.status === 'verified' &&
-                driver.documents?.identityCard?.status === 'verified' &&
-                driver.documents?.universityEnrollment?.status === 'verified';
+                driver.documents?.passportPhoto?.status === 'verified';
 
             // Update isDocumentVerified field
             driver.isDocumentVerified = allDocumentsVerified;
@@ -1296,8 +1295,7 @@ class AdminController {
                             // Check if all required documents are now verified
                             const allDocumentsVerified = updatedDriver.documents?.studentId?.status === 'verified' &&
                                 updatedDriver.documents?.profilePhoto?.status === 'verified' &&
-                                updatedDriver.documents?.identityCard?.status === 'verified' &&
-                                updatedDriver.documents?.universityEnrollment?.status === 'verified';
+                                updatedDriver.documents?.passportPhoto?.status === 'verified';
 
                             // Update isDocumentVerified field
                             updatedDriver.isDocumentVerified = allDocumentsVerified;
