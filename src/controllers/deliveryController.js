@@ -540,34 +540,9 @@ class DeliveryController {
                 throw new Error('Delivery must be completed to calculate earnings');
             }
 
-            // Calculate base earnings using EarningsService
-            const earningsCalculation = await EarningsService.calculateEarnings(delivery.fee);
-            const baseEarnings = earningsCalculation.driverEarning;
-
-            // Calculate bonuses
-            let totalBonus = 0;
-
-            // Priority bonus (10% for high priority)
-            if (delivery.priority === 'high') {
-                totalBonus += Math.round(baseEarnings * 0.1);
-            }
-
-            // Speed bonus (5% if completed within estimated time)
-            if (delivery.estimatedTime && delivery.deliveredAt && delivery.assignedAt) {
-                const estimatedMinutes = delivery.estimatedTime;
-                const actualMinutes = (delivery.deliveredAt - delivery.assignedAt) / (1000 * 60);
-
-                if (actualMinutes <= estimatedMinutes) {
-                    totalBonus += Math.round(baseEarnings * 0.05);
-                }
-            }
-
-            // Rating bonus (2% for 5-star rating)
-            if (delivery.assignedTo && delivery.assignedTo.rating >= 4.5) {
-                totalBonus += Math.round(baseEarnings * 0.02);
-            }
-
-            const totalEarnings = baseEarnings + totalBonus;
+            // Calculate comprehensive earnings using centralized method
+            const comprehensiveEarnings = await EarningsService.calculateComprehensiveEarnings(delivery, delivery.assignedTo);
+            const { baseEarnings, totalBonus, totalEarnings, bonusDetails } = comprehensiveEarnings;
 
             // Update delivery with calculated earnings (skip validation for existing records)
             delivery.driverEarning = totalEarnings;
@@ -581,6 +556,20 @@ class DeliveryController {
             driver.totalDeliveries = (driver.totalDeliveries || 0) + 1;
             await driver.save();
 
+            // Update driver rating after earnings calculation
+            try {
+                console.log(`⭐ Updating driver rating after earnings calculation for: ${driver.name}`);
+                const DriverRatingService = require('../services/driverRatingService');
+                const oldRating = driver.rating || 5.0;
+                const ratingResult = await DriverRatingService.calculateDriverRating(driver._id);
+                const newRating = ratingResult.finalRating;
+
+                console.log(`⭐ Rating updated for ${driver.name}: ${oldRating} → ${newRating}`);
+            } catch (ratingError) {
+                console.error('Failed to update driver rating after earnings calculation:', ratingError);
+                // Don't fail the earnings calculation if rating update fails
+            }
+
             console.log(`💰 Earnings calculated for delivery ${delivery.deliveryCode}: ${totalEarnings}₺ (Base: ${baseEarnings}₺, Bonus: ${totalBonus}₺)`);
 
             return {
@@ -590,9 +579,11 @@ class DeliveryController {
                 baseEarnings,
                 totalBonus,
                 totalEarnings,
+                bonusDetails,
                 driverId: driver._id,
                 driverTotalEarnings: driver.totalEarnings,
-                driverTotalDeliveries: driver.totalDeliveries
+                driverTotalDeliveries: driver.totalDeliveries,
+                driverRating: driver.rating
             };
 
         } catch (error) {

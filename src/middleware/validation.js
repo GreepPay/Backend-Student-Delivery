@@ -85,7 +85,7 @@ const schemas = {
             'string.pattern.base': 'Please enter a valid phone number'
         }),
         studentId: Joi.string().min(4).max(20).allow(''),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other').default('Other'),
+        area: Joi.string().valid('Lefkosa').default('Lefkosa'),
         university: Joi.string().valid(
             'Eastern Mediterranean University (EMU)',
             'Near East University (NEU)',
@@ -103,22 +103,22 @@ const schemas = {
         ).default('Eastern Mediterranean University (EMU)'),
         transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other').default('other'),
         address: Joi.string().valid(
-            'Gonyeli',
-            'Kucuk',
-            'Lefkosa',
-            'Famagusta',
-            'Kyrenia',
-            'Girne',
-            'Iskele',
-            'Guzelyurt',
-            'Lapta',
-            'Ozankoy',
-            'Bogaz',
-            'Dipkarpaz',
-            'Yeniiskele',
-            'Gazimagusa',
-            'Other'
-        ).allow('')
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ).default('Terminal/City Center')
     }),
 
     updateDriver: Joi.object({
@@ -126,7 +126,7 @@ const schemas = {
         fullName: Joi.string().min(2).max(50),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
         studentId: Joi.string().min(4).max(20).allow(''),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        area: Joi.string().valid('Lefkosa'),
         university: Joi.string().valid(
             'Eastern Mediterranean University (EMU)',
             'Near East University (NEU)',
@@ -144,29 +144,29 @@ const schemas = {
         ),
         transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         address: Joi.string().valid(
-            'Gonyeli',
-            'Kucuk',
-            'Lefkosa',
-            'Famagusta',
-            'Kyrenia',
-            'Girne',
-            'Iskele',
-            'Guzelyurt',
-            'Lapta',
-            'Ozankoy',
-            'Bogaz',
-            'Dipkarpaz',
-            'Yeniiskele',
-            'Gazimagusa',
-            'Other'
-        ).allow(''),
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ).default('Terminal/City Center'),
         isActive: Joi.boolean()
     }),
 
     updateDriverProfile: Joi.object({
         fullName: Joi.string().min(2).max(50),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        area: Joi.string().valid('Lefkosa'),
         transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         transportationMethod: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         university: Joi.string().valid(
@@ -186,22 +186,22 @@ const schemas = {
         ),
         studentId: Joi.string().min(4).max(20),
         address: Joi.string().valid(
-            'Gonyeli',
-            'Kucuk',
-            'Lefkosa',
-            'Famagusta',
-            'Kyrenia',
-            'Girne',
-            'Iskele',
-            'Guzelyurt',
-            'Lapta',
-            'Ozankoy',
-            'Bogaz',
-            'Dipkarpaz',
-            'Yeniiskele',
-            'Gazimagusa',
-            'Other'
-        ).allow(''),
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ).default('Terminal/City Center'),
         isActive: Joi.boolean(),
         isOnline: Joi.boolean()
     }),
@@ -266,7 +266,7 @@ const schemas = {
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
         startDate: Joi.date(),
         endDate: Joi.date().min(Joi.ref('startDate')),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        area: Joi.string().valid('Lefkosa'),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
         paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer')
     }),
@@ -278,13 +278,13 @@ const schemas = {
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
         startDate: Joi.date(),
         endDate: Joi.date().min(Joi.ref('startDate')),
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        area: Joi.string().valid('Lefkosa'),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
         paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer')
     }),
 
     driverFilters: Joi.object({
-        area: Joi.string().valid('Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'),
+        area: Joi.string().valid('Lefkosa'),
         isActive: Joi.boolean(),
         sortBy: Joi.string().valid('name', 'totalDeliveries', 'totalEarnings', 'joinedAt').default('name'),
         sortOrder: Joi.string().valid('asc', 'desc').default('asc')
@@ -407,6 +407,25 @@ const schemas = {
         startDate: Joi.date().iso().required(),
         endDate: Joi.date().iso().required()
     }),
+
+    calculateBalancedRemittance: Joi.object({
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required()
+    }),
+
+    generateBalancedRemittance: Joi.object({
+        driverId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+        startDate: Joi.date().iso().required(),
+        endDate: Joi.date().iso().required(),
+        dueDateDays: Joi.number().integer().min(1).max(30).default(7),
+        // Allow additional fields from frontend (optional)
+        remittanceType: Joi.string().optional(),
+        amount: Joi.number().optional(),
+        cashRemittanceOwed: Joi.number().optional(),
+        nonCashEarningsOwed: Joi.number().optional(),
+        netRemittanceAmount: Joi.number().optional(),
+        breakdown: Joi.object().optional()
+    }).unknown(true), // Allow unknown fields
 
     dueSoonQuery: Joi.object({
         daysAhead: Joi.number().integer().min(1).max(30).default(3)

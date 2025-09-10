@@ -82,7 +82,288 @@ class RemittanceService {
     }
 
     /**
-     * Generate remittance for a driver
+     * Calculate balanced remittance amount for a driver considering both cash and non-cash deliveries
+     * This addresses the issue where drivers need to remit cash but also deserve earnings from non-cash deliveries
+     * @param {string} driverId - Driver ID
+     * @param {Date} startDate - Start date for period
+     * @param {Date} endDate - End date for period
+     * @returns {Object} Balanced remittance calculation details
+     */
+    static async calculateBalancedRemittanceAmount(driverId, startDate, endDate) {
+        try {
+            // Get all delivered deliveries for the driver in the specified period
+            const allDeliveries = await Delivery.find({
+                assignedTo: driverId,
+                status: 'delivered',
+                deliveredAt: { $gte: startDate, $lte: endDate },
+                remittanceStatus: 'pending' // Only include unsettled deliveries
+            }).sort({ deliveredAt: 1 });
+
+            if (allDeliveries.length === 0) {
+                // Get more detailed information about what deliveries exist
+                const totalDriverDeliveries = await Delivery.countDocuments({ assignedTo: driverId });
+                const deliveredDeliveries = await Delivery.countDocuments({
+                    assignedTo: driverId,
+                    status: 'delivered'
+                });
+                const dateRangeDeliveries = await Delivery.countDocuments({
+                    assignedTo: driverId,
+                    deliveredAt: { $gte: startDate, $lte: endDate }
+                });
+                const settledDeliveries = await Delivery.countDocuments({
+                    assignedTo: driverId,
+                    status: 'delivered',
+                    deliveredAt: { $gte: startDate, $lte: endDate },
+                    remittanceStatus: 'settled'
+                });
+
+                return {
+                    driverId,
+                    startDate,
+                    endDate,
+                    totalDeliveries: 0,
+                    cashDeliveries: 0,
+                    nonCashDeliveries: 0,
+                    cashRemittanceOwed: 0,
+                    nonCashEarningsOwed: 0,
+                    netRemittanceAmount: 0,
+                    breakdown: {
+                        cash: { count: 0, totalFees: 0, driverEarnings: 0, companyEarnings: 0 },
+                        nonCash: { count: 0, totalFees: 0, driverEarnings: 0, companyEarnings: 0 }
+                    },
+                    deliveries: [],
+                    message: `No pending deliveries found for this period. Total driver deliveries: ${totalDriverDeliveries}, Delivered: ${deliveredDeliveries}, In date range: ${dateRangeDeliveries}, Already settled: ${settledDeliveries}`,
+                    debug: {
+                        totalDriverDeliveries,
+                        deliveredDeliveries,
+                        dateRangeDeliveries,
+                        settledDeliveries
+                    }
+                };
+            }
+
+            let cashRemittanceOwed = 0; // What driver owes company from cash deliveries
+            let nonCashEarningsOwed = 0; // What company owes driver from non-cash deliveries
+            const deliveryDetails = [];
+            const breakdown = {
+                cash: { count: 0, totalFees: 0, driverEarnings: 0, companyEarnings: 0 },
+                nonCash: { count: 0, totalFees: 0, driverEarnings: 0, companyEarnings: 0 }
+            };
+
+            // Process each delivery
+            for (const delivery of allDeliveries) {
+                const earnings = await EarningsService.calculateEarnings(delivery.fee);
+
+                const deliveryDetail = {
+                    deliveryId: delivery._id,
+                    deliveryCode: delivery.deliveryCode,
+                    fee: delivery.fee,
+                    paymentMethod: delivery.paymentMethod,
+                    driverEarning: earnings.driverEarning,
+                    companyEarning: earnings.companyEarning,
+                    deliveredAt: delivery.deliveredAt,
+                    ruleApplied: earnings.ruleApplied
+                };
+
+                if (delivery.paymentMethod === 'cash') {
+                    // Cash delivery: Driver collected cash, owes company their share
+                    cashRemittanceOwed += earnings.companyEarning;
+                    breakdown.cash.count += 1;
+                    breakdown.cash.totalFees += delivery.fee;
+                    breakdown.cash.driverEarnings += earnings.driverEarning;
+                    breakdown.cash.companyEarnings += earnings.companyEarning;
+
+                    deliveryDetail.remittanceType = 'driver_owes_company';
+                    deliveryDetail.amount = earnings.companyEarning;
+                } else {
+                    // Non-cash delivery: Company collected payment, owes driver their earnings
+                    nonCashEarningsOwed += earnings.driverEarning;
+                    breakdown.nonCash.count += 1;
+                    breakdown.nonCash.totalFees += delivery.fee;
+                    breakdown.nonCash.driverEarnings += earnings.driverEarning;
+                    breakdown.nonCash.companyEarnings += earnings.companyEarning;
+
+                    deliveryDetail.remittanceType = 'company_owes_driver';
+                    deliveryDetail.amount = earnings.driverEarning;
+                }
+
+                deliveryDetails.push(deliveryDetail);
+            }
+
+            // Calculate net remittance amount
+            // If positive: driver owes company money
+            // If negative: company owes driver money
+            const netRemittanceAmount = cashRemittanceOwed - nonCashEarningsOwed;
+
+            // Determine the final remittance amount and type
+            let finalRemittanceAmount, remittanceType, message;
+
+            if (netRemittanceAmount > 0) {
+                // Driver owes company money
+                finalRemittanceAmount = netRemittanceAmount;
+                remittanceType = 'driver_owes_company';
+                message = `Driver owes ₺${finalRemittanceAmount} (₺${cashRemittanceOwed} from cash deliveries - ₺${nonCashEarningsOwed} earnings from non-cash deliveries)`;
+            } else if (netRemittanceAmount < 0) {
+                // Company owes driver money
+                finalRemittanceAmount = Math.abs(netRemittanceAmount);
+                remittanceType = 'company_owes_driver';
+                message = `Company owes driver ₺${finalRemittanceAmount} (₺${nonCashEarningsOwed} earnings from non-cash deliveries - ₺${cashRemittanceOwed} from cash deliveries)`;
+            } else {
+                // Balanced - no remittance needed
+                finalRemittanceAmount = 0;
+                remittanceType = 'balanced';
+                message = 'Balanced - no remittance needed (cash remittance equals non-cash earnings)';
+            }
+
+            return {
+                driverId,
+                startDate,
+                endDate,
+                totalDeliveries: allDeliveries.length,
+                cashDeliveries: breakdown.cash.count,
+                nonCashDeliveries: breakdown.nonCash.count,
+                cashRemittanceOwed,
+                nonCashEarningsOwed,
+                netRemittanceAmount,
+                finalRemittanceAmount,
+                remittanceType,
+                breakdown,
+                deliveries: deliveryDetails,
+                message
+            };
+        } catch (error) {
+            console.error('Error calculating balanced remittance amount:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate balanced remittance for a driver considering both cash and non-cash deliveries
+     * @param {string} driverId - Driver ID
+     * @param {Date} startDate - Start date for period
+     * @param {Date} endDate - End date for period
+     * @param {string} adminId - Admin creating the remittance
+     * @param {number} dueDateDays - Days until due date (default: 7)
+     * @returns {Object} Created balanced remittance
+     */
+    static async generateBalancedRemittance(driverId, startDate, endDate, adminId, dueDateDays = 7) {
+        try {
+            // Get driver information
+            const driver = await Driver.findById(driverId);
+            if (!driver) {
+                throw new Error('Driver not found');
+            }
+
+            // Get admin information
+            const Admin = require('../models/Admin');
+            let admin = await Admin.findById(adminId);
+
+            // If admin not found in database, create a fallback admin object
+            if (!admin) {
+                console.warn(`Admin with ID ${adminId} not found in database, using fallback admin info`);
+                admin = {
+                    _id: adminId,
+                    name: 'System Admin',
+                    fullName: 'System Admin', // Keep both for compatibility
+                    email: 'admin@system.local'
+                };
+            }
+
+            // Calculate balanced remittance amount
+            const calculation = await this.calculateBalancedRemittanceAmount(driverId, startDate, endDate);
+
+            if (calculation.totalDeliveries === 0) {
+                return {
+                    success: false,
+                    message: calculation.message,
+                    debug: calculation.debug,
+                    calculation
+                };
+            }
+
+            // Generate unique reference number
+            const referenceNumber = `BAL-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+            // Create the remittance record
+            const remittanceData = {
+                driverId: driver._id,
+                driverName: driver.getFullName(),
+                driverEmail: driver.email,
+                driverPhone: driver.phone,
+                amount: calculation.finalRemittanceAmount,
+                remittanceType: calculation.remittanceType,
+                cashRemittanceOwed: calculation.cashRemittanceOwed,
+                nonCashEarningsOwed: calculation.nonCashEarningsOwed,
+                netRemittanceAmount: calculation.netRemittanceAmount,
+                paymentMethod: 'cash', // Default, can be updated later
+                referenceNumber,
+                description: `Balanced remittance: ${calculation.message}`,
+                handledBy: admin._id,
+                handledByName: admin.fullName || admin.name || 'System Admin',
+                handledByEmail: admin.email,
+                createdBy: admin._id, // Add missing required field
+                deliveryIds: calculation.deliveries.map(d => d.deliveryId),
+                deliveryCount: calculation.totalDeliveries,
+                cashDeliveryCount: calculation.cashDeliveries,
+                nonCashDeliveryCount: calculation.nonCashDeliveries,
+                totalDeliveryFees: calculation.breakdown.cash.totalFees + calculation.breakdown.nonCash.totalFees,
+                totalDriverEarnings: calculation.breakdown.cash.driverEarnings + calculation.breakdown.nonCash.driverEarnings,
+                totalCompanyEarnings: calculation.breakdown.cash.companyEarnings + calculation.breakdown.nonCash.companyEarnings,
+                breakdown: calculation.breakdown,
+                period: {
+                    startDate,
+                    endDate
+                },
+                dueDate: moment().add(dueDateDays, 'days').toDate()
+            };
+
+            const remittance = new Remittance(remittanceData);
+            await remittance.save();
+
+            // Update delivery remittance status
+            await Delivery.updateMany(
+                { _id: { $in: calculation.deliveries.map(d => d.deliveryId) } },
+                {
+                    remittanceStatus: 'settled',
+                    remittanceId: remittance._id
+                }
+            );
+
+            // Send notification email to driver
+            try {
+                await EmailService.sendRemittanceNotificationEmail(driver.email, driver.getFullName(), {
+                    driverName: driver.getFullName(),
+                    referenceNumber: remittance.referenceNumber,
+                    amount: remittance.amount,
+                    remittanceType: remittance.remittanceType,
+                    dueDate: remittance.dueDate,
+                    deliveryCount: remittance.deliveryCount, // Add missing field
+                    period: {
+                        startDate: startDate,
+                        endDate: endDate
+                    }, // Fix period format
+                    breakdown: calculation.breakdown,
+                    message: calculation.message
+                });
+            } catch (emailError) {
+                console.warn('Failed to send remittance notification email:', emailError.message);
+            }
+
+            return {
+                success: true,
+                remittance,
+                calculation,
+                message: `Balanced remittance created successfully. ${calculation.message}`
+            };
+
+        } catch (error) {
+            console.error('Error generating balanced remittance:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Generate remittance for a driver (legacy method for cash-only)
      * @param {string} driverId - Driver ID
      * @param {Date} startDate - Start date for period
      * @param {Date} endDate - End date for period
@@ -131,7 +412,7 @@ class RemittanceService {
                 referenceNumber: referenceNumber,
                 description: `Cash remittance for ${calculation.deliveryCount} deliveries`,
                 handledBy: admin._id,
-                handledByName: admin.name,
+                handledByName: admin.fullName || admin.name || 'System Admin',
                 handledByEmail: admin.email,
                 deliveryIds: calculation.deliveries.map(d => d.deliveryId),
                 deliveryCount: calculation.deliveryCount,

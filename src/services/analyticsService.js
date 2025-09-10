@@ -997,7 +997,10 @@ class AnalyticsService {
                         deliveries: 0,
                         earnings: 0,
                         revenue: 0,
-                        remissionOwed: 0
+                        remissionOwed: 0,
+                        cashRemittanceOwed: 0,
+                        nonCashEarningsOwed: 0,
+                        netRemittanceAmount: 0
                     };
                 }
 
@@ -1038,11 +1041,18 @@ class AnalyticsService {
                     // Driver collected cash, owes company their cut
                     weeklyBreakdown[weekKey].remissionOwed += companyEarning;
                     weeklyBreakdown[weekKey].earnings += driverEarning;
+                    weeklyBreakdown[weekKey].cashRemittanceOwed += companyEarning;
                 } else {
                     // Company collected payment, owes driver their earnings
                     weeklyBreakdown[weekKey].earnings += driverEarning;
+                    weeklyBreakdown[weekKey].nonCashEarningsOwed += driverEarning;
                     // No remission owed for non-cash payments
                 }
+            });
+
+            // Calculate net remittance amount for each week
+            Object.values(weeklyBreakdown).forEach(week => {
+                week.netRemittanceAmount = week.cashRemittanceOwed - week.nonCashEarningsOwed;
             });
 
             const result = Object.values(weeklyBreakdown).sort((a, b) => {

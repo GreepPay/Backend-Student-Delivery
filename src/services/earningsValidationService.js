@@ -214,6 +214,8 @@ class EarningsValidationService {
             }
 
             // Rating bonus (2% for 5-star rating)
+            // Note: Rating bonus calculation moved to centralized earnings calculation
+            // This ensures consistency and avoids duplicate logic
             if (delivery.assignedTo) {
                 const driver = await Driver.findById(delivery.assignedTo);
                 if (driver && driver.rating >= 4.5) {

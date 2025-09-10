@@ -33,14 +33,9 @@ router.post('/activate/:token',
         studentId: Joi.string().required(),
         university: Joi.string().required(),
         address: Joi.string().valid(
-            'Gonyeli',
-            'Kucuk',
-            'Lefkosa',
-            'Famagusta',
-            'Kyrenia',
-            'Other'
+            'Lefkosa'
         ).required().messages({
-            'any.only': 'Service area must be one of: Gonyeli, Kucuk, Lefkosa, Famagusta, Kyrenia, Other',
+            'any.only': 'Service area must be Lefkosa',
             'any.required': 'Service area is required'
         })
         // No password field - OTP-only authentication

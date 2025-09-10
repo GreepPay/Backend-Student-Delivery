@@ -798,6 +798,14 @@ router.get('/remittances/calculate/:driverId',
     RemittanceController.calculateRemittanceAmount
 );
 
+// Calculate balanced remittance amount for a driver
+router.get('/remittances/calculate-balanced/:driverId',
+    requirePermission('view_analytics'),
+    validateParams(schemas.driverId),
+    validateQuery(schemas.calculateBalancedRemittance),
+    RemittanceController.calculateBalancedRemittanceAmount
+);
+
 router.get('/remittances/summary/:driverId',
     requirePermission('view_analytics'),
     validateParams(schemas.driverId),
@@ -824,6 +832,13 @@ router.post('/remittances/bulk-generate',
     requirePermission('manage_remittances'),
     validateBody(schemas.bulkGenerateRemittances),
     RemittanceController.bulkGenerateRemittances
+);
+
+// Generate balanced remittance for a driver
+router.post('/remittances/generate-balanced',
+    requirePermission('manage_remittances'),
+    validateBody(schemas.generateBalancedRemittance),
+    RemittanceController.generateBalancedRemittance
 );
 
 router.get('/remittances/payment-structure',

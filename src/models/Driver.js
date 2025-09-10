@@ -33,8 +33,8 @@ const driverSchema = new mongoose.Schema({
     area: {
         type: String,
         trim: true,
-        enum: ['Gonyeli', 'Kucuk', 'Lefkosa', 'Famagusta', 'Kyrenia', 'Other'],
-        default: 'Other'
+        enum: ['Lefkosa'],
+        default: 'Lefkosa'
     },
     isActive: {
         type: Boolean,
@@ -80,7 +80,7 @@ const driverSchema = new mongoose.Schema({
     },
     rating: {
         type: Number,
-        default: 5.0,
+        default: 3.0,
         min: 1,
         max: 5
     },
@@ -205,28 +205,28 @@ const driverSchema = new mongoose.Schema({
         ],
         default: 'Eastern Mediterranean University (EMU)'
     },
-    // Address information
+    // Address information - Lefkosa service areas
     address: {
         type: String,
         trim: true,
         enum: [
-            'Gonyeli',
-            'Kucuk',
-            'Lefkosa',
-            'Famagusta',
-            'Kyrenia',
-            'Girne',
-            'Iskele',
-            'Guzelyurt',
-            'Lapta',
-            'Ozankoy',
-            'Bogaz',
-            'Dipkarpaz',
-            'Yeniiskele',
-            'Gazimagusa',
-            'Other'
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
         ],
-        default: 'Other'
+        default: 'Terminal/City Center'
     },
     // Violations and suspensions tracking
     violations: [{

@@ -171,7 +171,7 @@ class DriverController {
 
     // Add new driver (admin only)
     static addDriver = catchAsync(async (req, res) => {
-        const { email, name, phone, studentId, area = 'Other' } = req.body;
+        const { email, name, phone, studentId, area = 'Lefkosa' } = req.body;
         const { user } = req;
 
         try {
@@ -696,6 +696,33 @@ class DriverController {
                 }
             } else if (status === 'delivered' && !delivery.assignedTo) {
                 console.log(`⚠️ Delivery ${delivery.deliveryCode} marked as delivered but has no assigned driver`);
+            }
+
+            // SAFEGUARD 4: Update driver rating when delivery status changes
+            if (delivery.assignedTo && (status === 'delivered' || status === 'cancelled' || status === 'failed')) {
+                try {
+                    console.log(`⭐ Updating driver rating for: ${delivery.assignedTo.name} (${delivery.assignedTo._id})`);
+                    const DriverRatingService = require('../services/driverRatingService');
+                    const oldRating = delivery.assignedTo.rating || 5.0;
+                    const ratingResult = await DriverRatingService.calculateDriverRating(delivery.assignedTo._id);
+                    const newRating = ratingResult.finalRating;
+
+                    console.log(`⭐ Rating updated for ${delivery.assignedTo.name}: ${oldRating} → ${newRating}`);
+
+                    // Create notification if rating changed significantly
+                    if (Math.abs(newRating - oldRating) >= 0.5) {
+                        const AdminNotificationService = require('../services/adminNotificationService');
+                        await AdminNotificationService.createRatingUpdateNotification(
+                            delivery.assignedTo._id,
+                            oldRating,
+                            newRating
+                        );
+                        console.log(`📢 Rating change notification created for ${delivery.assignedTo.name}`);
+                    }
+                } catch (ratingError) {
+                    console.error('Failed to update driver rating:', ratingError);
+                    // Don't fail the delivery status update if rating calculation fails
+                }
             }
 
             // Create notification for status update
@@ -1648,29 +1675,24 @@ class DriverController {
                 { value: 'other', label: 'Other', requiresLicense: false }
             ],
             areas: [
-                'Gonyeli',
-                'Kucuk',
-                'Lefkosa',
-                'Famagusta',
-                'Kyrenia',
-                'Other'
+                'Lefkosa'
             ],
             addresses: [
-                'Gonyeli',
-                'Kucuk',
-                'Lefkosa',
-                'Famagusta',
-                'Kyrenia',
-                'Girne',
-                'Iskele',
-                'Guzelyurt',
-                'Lapta',
-                'Ozankoy',
-                'Bogaz',
-                'Dipkarpaz',
-                'Yeniiskele',
-                'Gazimagusa',
-                'Other'
+                'Kaymakli',
+                'Hamitköy',
+                'Yenişehir',
+                'Kumsal',
+                'Gönyeli',
+                'Dereboyu',
+                'Ortaköy',
+                'Yenikent',
+                'Taskinkoy',
+                'Metehan',
+                'Gocmenkoy',
+                'Haspolat',
+                'Alaykoy',
+                'Marmara',
+                'Terminal/City Center'
             ],
             documentTypes: [
                 { type: 'studentId', label: 'Student ID', required: true },
@@ -2075,7 +2097,7 @@ class DriverController {
                     success: false,
                     error: 'All fields are required for account activation (except password - OTP-only system)',
                     details: {
-                        note: 'Service area must be one of: Gonyeli, Kucuk, Lefkosa, Famagusta, Kyrenia, Other'
+                        note: 'Service area must be Lefkosa'
                     }
                 });
             }

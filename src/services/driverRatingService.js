@@ -20,10 +20,10 @@ class DriverRatingService {
             const deliveries = await Delivery.find({ assignedTo: driverId });
 
             if (deliveries.length === 0) {
-                // New driver with no deliveries
+                // New driver with no deliveries - start with neutral rating
                 return {
-                    rating: 5.0,
-                    score: 100,
+                    rating: 3.0,
+                    score: 60,
                     breakdown: {
                         acceptanceRate: 100,
                         completionRate: 100,
@@ -209,8 +209,9 @@ class DriverRatingService {
             metrics.customerSatisfactionScore * weights.customerSatisfactionScore
         );
 
-        // Convert to 5-star rating
-        const finalRating = Math.max(1, Math.min(5, (weightedScore / 20) + 1));
+        // Convert to 5-star rating with more realistic distribution
+        // 100% = 5.0 stars, 80% = 4.0 stars, 60% = 3.0 stars, 40% = 2.0 stars, 20% = 1.0 star
+        const finalRating = Math.max(1, Math.min(5, (weightedScore / 20)));
 
         // Generate Greep SDS specific factors
         const factors = [];
