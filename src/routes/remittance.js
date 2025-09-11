@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const RemittanceController = require('../controllers/remittanceController');
 const { authenticateToken, adminOnly, superAdminOnly } = require('../middleware/auth');
+const { validateQuery, validateBody, schemas } = require('../middleware/validation');
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -54,6 +55,13 @@ router.get('/calculate/:driverId',
     RemittanceController.calculateRemittanceAmount
 );
 
+// Calculate balanced remittance amount for a driver (admin only)
+router.get('/calculate-balanced/:driverId',
+    adminOnly,
+    validateQuery(schemas.calculateBalancedRemittance),
+    RemittanceController.calculateBalancedRemittanceAmount
+);
+
 // Get driver's remittance summary (driver can see their own, admin can see any)
 router.get('/summary/:driverId',
     (req, res, next) => {
@@ -88,6 +96,13 @@ router.put('/:remittanceId/complete',
 router.post('/bulk-generate',
     adminOnly,
     RemittanceController.bulkGenerateRemittances
+);
+
+// Generate balanced remittance for a driver (admin only)
+router.post('/generate-balanced',
+    adminOnly,
+    validateBody(schemas.generateBalancedRemittance),
+    RemittanceController.generateBalancedRemittance
 );
 
 module.exports = router; 

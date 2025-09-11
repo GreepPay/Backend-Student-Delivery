@@ -51,6 +51,33 @@ class EmailService {
     }
   }
 
+  // Generic sendEmail method
+  async sendEmail(to, subject, html) {
+    try {
+      // For development mode or localhost testing, log email details instead of sending
+      if (process.env.NODE_ENV === 'development' || (process.env.NODE_ENV === 'production' && process.env.LOCALHOST_OVERRIDE === 'true')) {
+        console.log(`📧 ${process.env.NODE_ENV === 'development' ? 'DEVELOPMENT' : 'LOCALHOST'} Email would be sent:`);
+        console.log(`   To: ${to}`);
+        console.log(`   Subject: ${subject}`);
+        console.log(`   HTML Content: ${html.substring(0, 100)}...`);
+        return { success: true, messageId: 'dev-email-' + Date.now() };
+      }
+
+      const info = await this.transporter.sendMail({
+        from: `"${process.env.EMAIL_FROM_NAME || 'Student Delivery'}" <${this.fromEmail}>`,
+        to,
+        subject,
+        html
+      });
+
+      console.log(`Email sent successfully: ${info.messageId}`);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('Error sending email:', error);
+      throw error;
+    }
+  }
+
   // Send OTP email
   async sendOTP(email, otp, userType) {
     const subject = 'Your Login OTP - Student Delivery System';
@@ -903,9 +930,11 @@ Greep SDS Team
                         <ul style="list-style: none; padding: 0;">
                             <li><strong>Reference Number:</strong> ${remittanceData.referenceNumber}</li>
                             <li><strong>Amount Due:</strong> ₺${remittanceData.amount}</li>
-                            <li><strong>Due Date:</strong> ${new Date(remittanceData.dueDate).toLocaleDateString()}</li>
-                            <li><strong>Delivery Count:</strong> ${remittanceData.deliveryCount} deliveries</li>
-                            <li><strong>Period:</strong> ${new Date(remittanceData.period.startDate).toLocaleDateString()} - ${new Date(remittanceData.period.endDate).toLocaleDateString()}</li>
+                            <li><strong>Due Date:</strong> ${remittanceData.dueDate ? new Date(remittanceData.dueDate).toLocaleDateString() : 'N/A'}</li>
+                            <li><strong>Delivery Count:</strong> ${remittanceData.deliveryCount || 0} deliveries</li>
+                            <li><strong>Period:</strong> ${remittanceData.period && remittanceData.period.startDate && remittanceData.period.endDate ?
+          new Date(remittanceData.period.startDate).toLocaleDateString() + ' - ' + new Date(remittanceData.period.endDate).toLocaleDateString() :
+          'N/A'}</li>
                         </ul>
                     </div>
                     

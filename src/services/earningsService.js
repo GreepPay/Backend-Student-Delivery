@@ -422,6 +422,72 @@ class EarningsService {
             console.error(`Error updating driver ${driverId} total earnings:`, error);
         }
     }
+
+    /**
+     * Calculate comprehensive earnings including all bonuses
+     * This is the centralized method for earnings calculation to avoid duplication
+     * @param {Object} delivery - Delivery object
+     * @param {Object} driver - Driver object (optional, will be fetched if not provided)
+     * @returns {Object} Comprehensive earnings calculation
+     */
+    static async calculateComprehensiveEarnings(delivery, driver = null) {
+        try {
+            // Get driver if not provided
+            if (!driver && delivery.assignedTo) {
+                driver = await Driver.findById(delivery.assignedTo);
+            }
+
+            // Calculate base earnings using earnings rules
+            const earningsCalculation = await this.calculateEarnings(delivery.fee);
+            const baseEarnings = earningsCalculation.driverEarning;
+
+            // Calculate bonuses
+            let totalBonus = 0;
+            const bonusDetails = {
+                priority: 0,
+                speed: 0,
+                rating: 0
+            };
+
+            // Priority bonus (10% for high priority)
+            if (delivery.priority === 'high') {
+                bonusDetails.priority = Math.round(baseEarnings * 0.1);
+                totalBonus += bonusDetails.priority;
+            }
+
+            // Speed bonus (5% if completed within estimated time)
+            if (delivery.estimatedTime && delivery.deliveredAt && delivery.assignedAt) {
+                const estimatedMinutes = delivery.estimatedTime;
+                const actualMinutes = (delivery.deliveredAt - delivery.assignedAt) / (1000 * 60);
+
+                if (actualMinutes <= estimatedMinutes) {
+                    bonusDetails.speed = Math.round(baseEarnings * 0.05);
+                    totalBonus += bonusDetails.speed;
+                }
+            }
+
+            // Rating bonus (2% for 4.5+ star rating)
+            if (driver && driver.rating >= 4.5) {
+                bonusDetails.rating = Math.round(baseEarnings * 0.02);
+                totalBonus += bonusDetails.rating;
+            }
+
+            const totalEarnings = baseEarnings + totalBonus;
+
+            return {
+                success: true,
+                baseEarnings,
+                totalBonus,
+                totalEarnings,
+                bonusDetails,
+                earningsCalculation,
+                driverRating: driver ? driver.rating : null
+            };
+        } catch (error) {
+            console.error('Error calculating comprehensive earnings:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = EarningsService; 

@@ -22,12 +22,7 @@ class PublicController {
                 'Cyprus West University'
             ],
             areas: [
-                'Gonyeli',
-                'Kucuk',
-                'Lefkosa',
-                'Famagusta',
-                'Kyrenia',
-                'Other'
+                'Lefkosa'
             ],
             transportationTypes: [
                 'bicycle',

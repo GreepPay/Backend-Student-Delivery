@@ -26,6 +26,26 @@ const remittanceSchema = new mongoose.Schema({
         required: true,
         min: 0
     },
+    // New balanced remittance fields
+    remittanceType: {
+        type: String,
+        enum: ['driver_owes_company', 'company_owes_driver', 'balanced'],
+        default: 'driver_owes_company'
+    },
+    cashRemittanceOwed: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    nonCashEarningsOwed: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    netRemittanceAmount: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
         enum: ['pending', 'completed', 'cancelled', 'overdue'],
@@ -74,6 +94,14 @@ const remittanceSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    cashDeliveryCount: {
+        type: Number,
+        default: 0
+    },
+    nonCashDeliveryCount: {
+        type: Number,
+        default: 0
+    },
     totalDeliveryFees: {
         type: Number,
         default: 0
@@ -85,6 +113,21 @@ const remittanceSchema = new mongoose.Schema({
     totalCompanyEarnings: {
         type: Number,
         default: 0
+    },
+    // Detailed breakdown for balanced remittance
+    breakdown: {
+        cash: {
+            count: { type: Number, default: 0 },
+            totalFees: { type: Number, default: 0 },
+            driverEarnings: { type: Number, default: 0 },
+            companyEarnings: { type: Number, default: 0 }
+        },
+        nonCash: {
+            count: { type: Number, default: 0 },
+            totalFees: { type: Number, default: 0 },
+            driverEarnings: { type: Number, default: 0 },
+            companyEarnings: { type: Number, default: 0 }
+        }
     },
 
     // Period Information

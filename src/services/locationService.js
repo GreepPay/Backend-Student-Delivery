@@ -138,15 +138,54 @@ class LocationService {
      */
     static getAreaCoordinates(area) {
         const areaCoordinates = {
-            'Gonyeli': { lat: 35.2167, lng: 33.3333 },
-            'Kucuk': { lat: 35.1833, lng: 33.3667 },
-            'Lefkosa': { lat: 35.1856, lng: 33.3823 },
-            'Famagusta': { lat: 35.1167, lng: 33.9167 },
-            'Kyrenia': { lat: 35.3333, lng: 33.3167 },
-            'Other': { lat: 35.1856, lng: 33.3823 } // Default to Lefkosa
+            'Lefkosa': { lat: 35.1856, lng: 33.3823 } // Main Lefkosa coordinates
         };
 
-        return areaCoordinates[area] || areaCoordinates['Other'];
+        // Detailed coordinates for Lefkosa service areas
+        const lefkosaAreaCoordinates = {
+            'Kaymakli': { lat: 35.2000, lng: 33.3500 },
+            'Hamitköy': { lat: 35.1900, lng: 33.3700 },
+            'Yenişehir': { lat: 35.1800, lng: 33.3800 },
+            'Kumsal': { lat: 35.1750, lng: 33.3850 },
+            'Gönyeli': { lat: 35.2167, lng: 33.3333 },
+            'Dereboyu': { lat: 35.1700, lng: 33.3900 },
+            'Ortaköy': { lat: 35.1600, lng: 33.4000 },
+            'Yenikent': { lat: 35.1500, lng: 33.4100 },
+            'Taskinkoy': { lat: 35.1400, lng: 33.4200 },
+            'Metehan': { lat: 35.1300, lng: 33.4300 },
+            'Gocmenkoy': { lat: 35.1200, lng: 33.4400 },
+            'Haspolat': { lat: 35.1100, lng: 33.4500 },
+            'Alaykoy': { lat: 35.1000, lng: 33.4600 },
+            'Marmara': { lat: 35.0900, lng: 33.4700 },
+            'Terminal/City Center': { lat: 35.1856, lng: 33.3823 }
+        };
+
+        return areaCoordinates[area] || lefkosaAreaCoordinates['Terminal/City Center'];
+    }
+
+    /**
+     * Get coordinates for specific Lefkosa service areas
+     */
+    static getLefkosaAreaCoordinates(address) {
+        const lefkosaAreaCoordinates = {
+            'Kaymakli': { lat: 35.2000, lng: 33.3500 },
+            'Hamitköy': { lat: 35.1900, lng: 33.3700 },
+            'Yenişehir': { lat: 35.1800, lng: 33.3800 },
+            'Kumsal': { lat: 35.1750, lng: 33.3850 },
+            'Gönyeli': { lat: 35.2167, lng: 33.3333 },
+            'Dereboyu': { lat: 35.1700, lng: 33.3900 },
+            'Ortaköy': { lat: 35.1600, lng: 33.4000 },
+            'Yenikent': { lat: 35.1500, lng: 33.4100 },
+            'Taskinkoy': { lat: 35.1400, lng: 33.4200 },
+            'Metehan': { lat: 35.1300, lng: 33.4300 },
+            'Gocmenkoy': { lat: 35.1200, lng: 33.4400 },
+            'Haspolat': { lat: 35.1100, lng: 33.4500 },
+            'Alaykoy': { lat: 35.1000, lng: 33.4600 },
+            'Marmara': { lat: 35.0900, lng: 33.4700 },
+            'Terminal/City Center': { lat: 35.1856, lng: 33.3823 }
+        };
+
+        return lefkosaAreaCoordinates[address] || lefkosaAreaCoordinates['Terminal/City Center'];
     }
 
     /**

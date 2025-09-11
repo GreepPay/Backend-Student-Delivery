@@ -299,6 +299,35 @@ class RemittanceController {
         }
     });
 
+    // Calculate balanced remittance amount for a driver
+    static calculateBalancedRemittanceAmount = catchAsync(async (req, res) => {
+        const { driverId, startDate, endDate } = req.query;
+
+        console.log('🔍 Balanced remittance calculation request:', {
+            driverId: req.params.driverId,
+            queryDriverId: driverId,
+            startDate,
+            endDate,
+            params: req.params,
+            query: req.query
+        });
+
+        try {
+            const calculation = await RemittanceService.calculateBalancedRemittanceAmount(
+                req.params.driverId || driverId,
+                new Date(startDate),
+                new Date(endDate)
+            );
+
+            console.log('✅ Balanced remittance calculation result:', calculation);
+
+            successResponse(res, calculation, 'Balanced remittance calculation completed');
+        } catch (error) {
+            console.error('❌ Balanced remittance calculation error:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
     // Get driver remittance summary
     static getDriverRemittanceSummary = catchAsync(async (req, res) => {
         const { driverId } = req.params;
@@ -453,6 +482,59 @@ class RemittanceController {
             }, 'Driver remittance summary retrieved successfully');
         } catch (error) {
             errorResponse(res, error, 500);
+        }
+    });
+
+    // Generate balanced remittance for a driver
+    static generateBalancedRemittance = catchAsync(async (req, res) => {
+        const { driverId, startDate, endDate, dueDateDays = 7 } = req.body;
+        const { user } = req;
+
+        try {
+            if (!driverId || !startDate || !endDate) {
+                return errorResponse(res, 'Driver ID, start date, and end date are required', 400);
+            }
+
+            // Validate dates
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                return errorResponse(res, 'Invalid date format', 400);
+            }
+
+            if (start >= end) {
+                return errorResponse(res, 'Start date must be before end date', 400);
+            }
+
+            // Generate balanced remittance
+            const adminId = user._id || user.id; // Handle both _id and id field names
+            const result = await RemittanceService.generateBalancedRemittance(
+                driverId,
+                start,
+                end,
+                adminId,
+                dueDateDays
+            );
+
+            // Check if no deliveries were found
+            if (!result.success) {
+                return res.status(400).json({
+                    success: false,
+                    error: result.message,
+                    debug: result.debug,
+                    calculation: result.calculation
+                });
+            }
+
+            successResponse(res, {
+                remittance: result.remittance,
+                calculation: result.calculation,
+                message: result.message
+            });
+
+        } catch (error) {
+            errorResponse(res, error.message, 500);
         }
     });
 
