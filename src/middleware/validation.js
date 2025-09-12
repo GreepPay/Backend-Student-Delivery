@@ -85,7 +85,23 @@ const schemas = {
             'string.pattern.base': 'Please enter a valid phone number'
         }),
         studentId: Joi.string().min(4).max(20).allow(''),
-        area: Joi.string().valid('Lefkosa').default('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'nkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ).default('Terminal/City Center'),
         university: Joi.string().valid(
             'Eastern Mediterranean University (EMU)',
             'Near East University (NEU)',
@@ -117,10 +133,9 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center',
-            'Lefkosa'
-        ).default('Lefkosa').messages({
-            'any.only': 'Please select a valid service area within Lefkosa'
+            'Terminal/City Center'
+        ).default('Terminal/City Center').messages({
+            'any.only': 'Please select a valid service area'
         })
     }),
 
@@ -129,7 +144,23 @@ const schemas = {
         fullName: Joi.string().min(2).max(50),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
         studentId: Joi.string().min(4).max(20).allow(''),
-        area: Joi.string().valid('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ),
         university: Joi.string().valid(
             'Eastern Mediterranean University (EMU)',
             'Near East University (NEU)',
@@ -161,10 +192,9 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center',
-            'Lefkosa'
-        ).default('Lefkosa').messages({
-            'any.only': 'Please select a valid service area within Lefkosa'
+            'Terminal/City Center'
+        ).default('Terminal/City Center').messages({
+            'any.only': 'Please select a valid service area'
         }),
         isActive: Joi.boolean()
     }),
@@ -172,7 +202,23 @@ const schemas = {
     updateDriverProfile: Joi.object({
         fullName: Joi.string().min(2).max(50),
         phone: Joi.string().pattern(/^[\+]?[1-9][\d]{0,15}$/).allow(''),
-        area: Joi.string().valid('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ),
         transportationType: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         transportationMethod: Joi.string().valid('bicycle', 'motorcycle', 'scooter', 'car', 'walking', 'other'),
         university: Joi.string().valid(
@@ -206,10 +252,9 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center',
-            'Lefkosa'
-        ).default('Lefkosa').messages({
-            'any.only': 'Please select a valid service area within Lefkosa'
+            'Terminal/City Center'
+        ).default('Terminal/City Center').messages({
+            'any.only': 'Please select a valid service area'
         }),
         isActive: Joi.boolean(),
         isOnline: Joi.boolean()
@@ -275,7 +320,23 @@ const schemas = {
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
         startDate: Joi.date(),
         endDate: Joi.date().min(Joi.ref('startDate')),
-        area: Joi.string().valid('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
         paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer')
     }),
@@ -287,13 +348,45 @@ const schemas = {
         assignedTo: Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
         startDate: Joi.date(),
         endDate: Joi.date().min(Joi.ref('startDate')),
-        area: Joi.string().valid('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ),
         priority: Joi.string().valid('low', 'normal', 'high', 'urgent'),
         paymentMethod: Joi.string().valid('cash', 'pos', 'naira_transfer', 'isbank_transfer', 'crypto_transfer')
     }),
 
     driverFilters: Joi.object({
-        area: Joi.string().valid('Lefkosa'),
+        area: Joi.string().valid(
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ),
         isActive: Joi.boolean(),
         sortBy: Joi.string().valid('name', 'totalDeliveries', 'totalEarnings', 'joinedAt').default('name'),
         sortOrder: Joi.string().valid('asc', 'desc').default('asc')

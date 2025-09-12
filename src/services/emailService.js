@@ -174,7 +174,7 @@ class EmailService {
                       <div class="step">5. <strong>Start accepting deliveries!</strong></div>
                   </div>
                   
-                  <div style="text-align: center;">
+                  <div style="text-align: center; color: white;">
                       <a href="${activationLink}" class="button">Activate Your Account</a>
                   </div>
                   

@@ -1982,11 +1982,16 @@ class DriverController {
             if (finalTransportationType !== undefined) driver.transportationType = finalTransportationType;
             if (university !== undefined) driver.university = university;
             if (studentId !== undefined) driver.studentId = studentId;
-            if (address !== undefined) driver.address = address;
+            if (address !== undefined) {
+                driver.address = address;
+                // Also update area field to match address for consistency
+                driver.area = address;
+            }
 
             await driver.save();
 
             console.log('✅ Profile updated successfully for driver:', user.id);
+            console.log('📍 Updated location fields:', { area: driver.area, address: driver.address });
 
             successResponse(res, {
                 id: driver._id,
@@ -2097,7 +2102,7 @@ class DriverController {
                     success: false,
                     error: 'All fields are required for account activation (except password - OTP-only system)',
                     details: {
-                        note: 'Please select a valid service area within Lefkosa region'
+                        note: 'Please select a valid service area'
                     }
                 });
             }

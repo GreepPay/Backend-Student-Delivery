@@ -489,6 +489,43 @@ class AuthController {
         }
     });
 
+    // Verify token endpoint - same functionality as validateSession
+    static verifyToken = catchAsync(async (req, res) => {
+        const { user } = req;
+
+        try {
+            // Check if user still exists and is active
+            let userData;
+
+            if (user.userType === 'admin') {
+                const Admin = require('../models/Admin');
+                userData = await Admin.findById(user.id).select('isActive');
+            } else if (user.userType === 'driver') {
+                const Driver = require('../models/Driver');
+                userData = await Driver.findById(user.id).select('isActive');
+            }
+
+            if (!userData || !userData.isActive) {
+                return res.status(401).json({
+                    success: false,
+                    error: 'Token invalid. Please login again.'
+                });
+            }
+
+            successResponse(res, {
+                valid: true,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    fullName: user.fullName,
+                    userType: user.userType
+                }
+            }, 'Token is valid');
+        } catch (error) {
+            errorResponse(res, error, 500);
+        }
+    });
+
     // Get authentication statistics (admin only)
     static getAuthStats = catchAsync(async (req, res) => {
         const { user } = req;
