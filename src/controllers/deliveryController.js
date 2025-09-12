@@ -708,6 +708,67 @@ class DeliveryController {
         }
     });
 
+    // Send delivery notification to drivers
+    static sendDeliveryNotification = catchAsync(async (req, res) => {
+        const { deliveryId, message, sound, priority } = req.body;
+        const { user } = req;
+
+        try {
+            // Find the delivery
+            const delivery = await Delivery.findById(deliveryId);
+            if (!delivery) {
+                return errorResponse(res, { message: 'Delivery not found' }, 404);
+            }
+
+            // Check if delivery is in a state that allows notifications
+            if (delivery.status === 'completed' || delivery.status === 'cancelled') {
+                return errorResponse(res, { message: 'Cannot send notifications for completed or cancelled deliveries' }, 400);
+            }
+
+            // Get the socket service
+            const socketService = require('../services/socketService');
+
+            // Prepare notification data
+            const notificationData = {
+                type: 'delivery-notification',
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                pickupLocation: delivery.pickupLocation,
+                deliveryLocation: delivery.deliveryLocation,
+                customerName: delivery.customerName,
+                customerPhone: delivery.customerPhone,
+                fee: delivery.fee,
+                estimatedTime: delivery.estimatedTime,
+                priority: priority || 'normal',
+                message: message || `New delivery available: ${delivery.deliveryCode}`,
+                sound: sound || 'delivery-notification.mp3',
+                timestamp: new Date(),
+                createdBy: user.id
+            };
+
+            // Emit notification to all online drivers
+            socketService.emit('delivery-notification', notificationData);
+
+            console.log('📢 Delivery notification sent:', {
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                priority,
+                message: notificationData.message
+            });
+
+            successResponse(res, {
+                deliveryId: delivery._id,
+                deliveryCode: delivery.deliveryCode,
+                notificationSent: true,
+                timestamp: new Date()
+            }, 'Delivery notification sent successfully');
+
+        } catch (error) {
+            console.error('Error sending delivery notification:', error);
+            errorResponse(res, error, 500);
+        }
+    });
+
 }
 
 module.exports = DeliveryController;

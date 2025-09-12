@@ -413,6 +413,18 @@ router.post('/deliveries/:id/assign',
     DeliveryController.manualAssign
 );
 
+// Send delivery notification
+router.post('/send-delivery-notification',
+    requirePermission('create_delivery'),
+    validate(Joi.object({
+        deliveryId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+        message: Joi.string().optional(),
+        sound: Joi.string().optional(),
+        priority: Joi.string().valid('low', 'normal', 'high', 'urgent').default('normal')
+    })),
+    DeliveryController.sendDeliveryNotification
+);
+
 router.post('/deliveries/:id/unassign',
     requirePermission('edit_delivery'),
     validateParams(paramSchemas.mongoId),
