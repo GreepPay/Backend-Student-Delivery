@@ -117,8 +117,11 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center'
-        ).default('Terminal/City Center')
+            'Terminal/City Center',
+            'Lefkosa'
+        ).default('Lefkosa').messages({
+            'any.only': 'Please select a valid service area within Lefkosa'
+        })
     }),
 
     updateDriver: Joi.object({
@@ -158,8 +161,11 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center'
-        ).default('Terminal/City Center'),
+            'Terminal/City Center',
+            'Lefkosa'
+        ).default('Lefkosa').messages({
+            'any.only': 'Please select a valid service area within Lefkosa'
+        }),
         isActive: Joi.boolean()
     }),
 
@@ -200,8 +206,11 @@ const schemas = {
             'Haspolat',
             'Alaykoy',
             'Marmara',
-            'Terminal/City Center'
-        ).default('Terminal/City Center'),
+            'Terminal/City Center',
+            'Lefkosa'
+        ).default('Lefkosa').messages({
+            'any.only': 'Please select a valid service area within Lefkosa'
+        }),
         isActive: Joi.boolean(),
         isOnline: Joi.boolean()
     }),

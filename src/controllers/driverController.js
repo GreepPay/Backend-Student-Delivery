@@ -2097,7 +2097,7 @@ class DriverController {
                     success: false,
                     error: 'All fields are required for account activation (except password - OTP-only system)',
                     details: {
-                        note: 'Service area must be Lefkosa'
+                        note: 'Please select a valid service area within Lefkosa region'
                     }
                 });
             }
