@@ -110,6 +110,8 @@ router.post('/change-password', AuthController.changePassword);
 
 router.get('/validate-session', AuthController.validateSession);
 
+router.get('/verify-token', AuthController.verifyToken);
+
 // Super admin only routes
 router.get('/stats',
     superAdminOnly,

@@ -33,8 +33,24 @@ const driverSchema = new mongoose.Schema({
     area: {
         type: String,
         trim: true,
-        enum: ['Lefkosa'],
-        default: 'Lefkosa'
+        enum: [
+            'Kaymakli',
+            'Hamitköy',
+            'Yenişehir',
+            'Kumsal',
+            'Gönyeli',
+            'Dereboyu',
+            'Ortaköy',
+            'Yenikent',
+            'Taskinkoy',
+            'Metehan',
+            'Gocmenkoy',
+            'Haspolat',
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
+        ],
+        default: 'Terminal/City Center'
     },
     isActive: {
         type: Boolean,

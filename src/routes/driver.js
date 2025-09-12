@@ -45,9 +45,11 @@ router.post('/activate/:token',
             'Metehan',
             'Gocmenkoy',
             'Haspolat',
-            'Lefkosa'
+            'Alaykoy',
+            'Marmara',
+            'Terminal/City Center'
         ).required().messages({
-            'any.only': 'Please select a valid service area within Lefkosa',
+            'any.only': 'Please select a valid service area',
             'any.required': 'Service area is required'
         })
         // No password field - OTP-only authentication
